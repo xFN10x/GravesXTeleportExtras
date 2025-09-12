@@ -3,15 +3,19 @@ package com.ranull.graves.manager;
 import com.ranull.graves.Graves;
 import com.ranull.graves.data.BlockData;
 import com.ranull.graves.data.ChunkData;
+import com.ranull.graves.integration.MiniMessage;
 import com.ranull.graves.type.Grave;
 import com.ranull.graves.util.LocationUtil;
+import me.jay.GravesX.util.SkinTextureUtil;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.Skull;
+import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The BlockManager class is responsible for managing block data and operations related to graves.
@@ -223,17 +227,79 @@ public final class BlockManager {
         if (location.getWorld() != null) {
             if (blockData.getReplaceMaterial() != null) {
                 Material material = Material.matchMaterial(blockData.getReplaceMaterial());
-
                 if (material != null) {
-                    blockData.getLocation().getBlock().setType(material);
+                    location.getBlock().setType(material);
                 }
             } else {
-                blockData.getLocation().getBlock().setType(Material.AIR);
+                location.getBlock().setType(Material.AIR);
             }
 
-            if (blockData.getReplaceData() != null) {
-                blockData.getLocation().getBlock().setBlockData(plugin.getServer()
-                        .createBlockData(blockData.getReplaceData()));
+            String raw = blockData.getReplaceData();
+            String bd = raw;
+            String gx = null;
+            final String MARKER = "||GXHEAD||";
+
+            if (raw != null) {
+                int idx = raw.lastIndexOf(MARKER);
+                if (idx >= 0) {
+                    bd = raw.substring(0, idx);
+                    gx = raw.substring(idx + MARKER.length()).trim();
+                }
+            }
+
+            if (bd != null && !bd.isEmpty()) {
+                try {
+                    location.getBlock().setBlockData(plugin.getServer().createBlockData(bd));
+                } catch (Throwable ignored) {
+                    // If parsing fails, we already restored material above; continue.
+                }
+            }
+
+            if (gx != null && !gx.isEmpty() && location.getBlock().getState() instanceof Skull) {
+                Skull skull = (Skull) location.getBlock().getState();
+
+                String tx = null, on = null, ou = null, nm = null;
+                try {
+                    Pattern p = Pattern.compile("\\\"(tx|on|ou|nm)\\\"\\s*:\\s*\\\"(.*?)\\\"");
+                    Matcher m = p.matcher(gx);
+                    Map<String,String> map = new HashMap<>();
+                    while (m.find()) map.put(m.group(1), m.group(2).replace("\\\"", "\"").replace("\\\\", "\\"));
+                    tx = map.get("tx");
+                    on = map.get("on");
+                    ou = map.get("ou");
+                    nm = map.get("nm");
+                } catch (Throwable ignored) {}
+
+                try {
+                    if (tx != null && !tx.isEmpty()) {
+                        SkinTextureUtil.setSkullBlockTexture(skull, (on != null && !on.isEmpty()) ? on : "gravesx", tx);
+                    } else if (ou != null && !ou.isEmpty()) {
+                        try { skull.setOwningPlayer(plugin.getServer().getOfflinePlayer(UUID.fromString(ou))); } catch (Throwable ignored) {}
+                    } else if (on != null && !on.isEmpty()) {
+                        try { skull.setOwningPlayer(plugin.getServer().getOfflinePlayer(on)); } catch (Throwable ignored) {}
+                    }
+                } catch (Throwable ignored) {}
+
+                if (nm != null && !nm.isEmpty()) {
+                    String rawName = getRawName(nm);
+                    try {
+                        if (plugin.getIntegrationManager().hasMiniMessage()) {
+                            if (!rawName.isEmpty()) skull.setOwner(MiniMessage.parseString(rawName));
+                        } else {
+
+                        }
+                    } catch (Throwable adventureMissing) {
+                        try {
+                            if (!rawName.isEmpty()) skull.setOwner(rawName);
+                        } catch (Throwable ignored) {}
+                    }
+                }
+
+                try {
+                    skull.update(true, false);
+                } catch (Throwable ignored) {
+
+                }
             }
 
             plugin.getDataManager().removeBlockData(location);
@@ -241,5 +307,19 @@ public final class BlockManager {
                     + location.getWorld().getName() + ", " + (location.getBlockX() + 0.5) + "x, "
                     + (location.getBlockY() + 0.5) + "y, " + (location.getBlockZ() + 0.5) + "z", 1);
         }
+    }
+
+    private static @NotNull String getRawName(String nm) {
+        String rawName = nm;
+        if (rawName.startsWith("{") && rawName.contains("\"text\"")) {
+            int i = rawName.indexOf("\"text\"");
+            if (i >= 0) {
+                int c = rawName.indexOf(':', i);
+                int q1 = rawName.indexOf('"', c + 1);
+                int q2 = (q1 >= 0) ? rawName.indexOf('"', q1 + 1) : -1;
+                if (q1 >= 0 && q2 > q1) rawName = rawName.substring(q1 + 1, q2);
+            }
+        }
+        return rawName;
     }
 }

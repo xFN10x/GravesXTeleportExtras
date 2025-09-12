@@ -8,14 +8,13 @@ import com.ranull.graves.type.Grave;
 import com.ranull.graves.util.LocationUtil;
 import com.ranull.graves.util.StringUtil;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
-import org.bukkit.scheduler.BukkitRunnable;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The HologramManager class is responsible for managing holograms associated with graves.
@@ -68,6 +67,7 @@ public final class HologramManager extends EntityDataManager {
 
                 if (location.getWorld() != null) {
                     ArmorStand armorStand = location.getWorld().spawn(location, ArmorStand.class);
+
                     armorStand.setVisible(false);
                     armorStand.setGravity(false);
                     armorStand.setCustomNameVisible(true);
@@ -95,6 +95,9 @@ public final class HologramManager extends EntityDataManager {
                     if (plugin.getVersionManager().hasScoreboardTags()) {
                         armorStand.getScoreboardTags().add("graveHologram");
                         armorStand.getScoreboardTags().add("graveHologramGraveUUID:" + grave.getUUID());
+
+                        String locKey = toLocKey(grave.getLocationDeath());
+                        armorStand.getScoreboardTags().add("graveHologramGraveLocation:" + locKey);
                     }
 
                     HologramData hologramData = new HologramData(location, armorStand.getUniqueId(),
@@ -117,7 +120,50 @@ public final class HologramManager extends EntityDataManager {
      * @param grave The grave whose holograms should be removed.
      */
     public void removeHologram(Grave grave) {
-        removeHologram(getEntityDataMap(getLoadedEntityDataList(grave)));
+        List<EntityData> list = getLoadedEntityDataList(grave);
+        plugin.debugMessage("[Holograms] removeHologram(grave=" + grave.getUUID() + ") loaded entities: " + list.size(), 1);
+
+        Map<EntityData, Entity> map = getEntityDataMap(list);
+        if (!plugin.getVersionManager().hasScoreboardTags()) {
+            removeHologram(map);
+            return;
+        }
+
+        String expectedKey = toLocKey(grave.getLocationDeath());
+
+        Map<EntityData, Entity> toRemove = new LinkedHashMap<>();
+        Map<EntityData, Entity> skipped  = new LinkedHashMap<>();
+
+        for (Map.Entry<EntityData, Entity> e : map.entrySet()) {
+            Entity entity = e.getValue();
+
+            UUID tagUuid = extractGraveUUIDFromTags(entity);
+            String tagLocKey = extractGraveLocationKeyFromTags(entity);
+
+            boolean uuidMatches = grave.getUUID().equals(tagUuid);
+            boolean locMatches  = locKeysMatch(expectedKey, tagLocKey);
+
+            if (uuidMatches || locMatches) {
+                toRemove.put(e.getKey(), e.getValue());
+            } else {
+                skipped.put(e.getKey(), e.getValue());
+            }
+
+            plugin.debugMessage(
+                    "[Holograms] check entity=" + entity.getUniqueId()
+                            + " tagUUID=" + tagUuid
+                            + " tagLocKey=" + (tagLocKey == null ? "null" : tagLocKey)
+                            + " expectedUUID=" + grave.getUUID()
+                            + " expectedLocKey=" + expectedKey
+                            + " -> " + (uuidMatches || locMatches ? "REMOVE" : "SKIP"),
+                    3
+            );
+        }
+
+        if (!skipped.isEmpty()) {
+            plugin.debugMessage("[Holograms] Skipped " + skipped.size() + " non-matching hologram entities for grave " + grave.getUUID(), 2);
+        }
+        removeHologram(toRemove);
     }
 
     /**
@@ -126,6 +172,7 @@ public final class HologramManager extends EntityDataManager {
      * @param entityData The entity data of the hologram to remove.
      */
     public void removeHologram(EntityData entityData) {
+        plugin.debugMessage("[Holograms] removeHologram(entityData=" + entityData.getUUIDEntity() + ")", 1);
         removeHologram(getEntityDataMap(Collections.singletonList(entityData)));
     }
 
@@ -134,33 +181,276 @@ public final class HologramManager extends EntityDataManager {
      *
      * @param entityDataMap The map of entity data to entities.
      */
-    public void removeHologram(Map<EntityData, Entity> entityDataMap) {
+    private void removeHologram(Map<EntityData, Entity> entityDataMap) {
         List<EntityData> entityDataList = new ArrayList<>();
+        Set<UUID> affectedGraves = new LinkedHashSet<>();
 
         for (Map.Entry<EntityData, Entity> entry : entityDataMap.entrySet()) {
             Entity entity = entry.getValue();
-            if (entity instanceof ArmorStand) {
-                ArmorStand armorStand = (ArmorStand) entity;
 
-                if (armorStand.isValid()) {
-                    armorStand.remove();
-                }
-
-                new BukkitRunnable() {
-                    @Override
-                    public void run() {
-                        if (armorStand.isValid()) {
-                            armorStand.remove();
-                        }
-                    }
-                }.runTaskLater(plugin, 1L); // Run a tick later to ensure removal
-            } else {
-                entity.remove();
+            UUID graveUUIDFromTag = extractGraveUUIDFromTags(entity);
+            if (graveUUIDFromTag != null) {
+                affectedGraves.add(graveUUIDFromTag);
             }
 
+            String locKey = extractGraveLocationKeyFromTags(entity);
+            if (locKey != null) {
+                plugin.debugMessage("[Holograms] Removing hologram entity=" + entity.getUniqueId()
+                        + " tagGraveUUID=" + graveUUIDFromTag
+                        + " tagDeathLocKey=" + locKey, 2);
+            }
+
+            entity.remove();
             entityDataList.add(entry.getKey());
         }
 
         plugin.getDataManager().removeEntityData(entityDataList);
+
+        if (!affectedGraves.isEmpty()) {
+            plugin.debugMessage("Removed hologram entities for graves: " + affectedGraves, 2);
+        }
+    }
+
+    /**
+     * Scans all worlds for hologram ArmorStands (tag "graveHologram") and removes
+     * any lingering ones:
+     * - Missing/invalid graveHologramGraveUUID:uuid tag
+     * - grave UUID not found in DB
+     * - (optional) Tag location present but mismatches DB grave death-location
+     * <p>
+     * Must be called on the main thread / correct region thread by the caller.
+     */
+    public void purgeLingeringHolograms() {
+        if (!plugin.getVersionManager().hasScoreboardTags()) return;
+
+        for (World world : plugin.getServer().getWorlds()) {
+            for (ArmorStand stand : world.getEntitiesByClass(ArmorStand.class)) {
+                try {
+                    if (!stand.getScoreboardTags().contains("graveHologram")) continue;
+                } catch (Throwable ignored) {
+                    continue;
+                }
+
+                UUID tagUuid = extractGraveUUIDFromStand(stand);
+
+                if (tagUuid == null) {
+                    try {
+                        stand.remove();
+                    } catch (Throwable ignored) {
+                    }
+                    plugin.debugMessage("[Cleanup] Removed hologram (missing/invalid grave UUID tag) entity=" + stand.getUniqueId(), 2);
+                    continue;
+                }
+
+                Grave grave;
+                try {
+                    grave = hasGrave(tagUuid);
+                } catch (Throwable ignored) {
+                    grave = null;
+                }
+
+                if (grave == null) {
+                    try {
+                        stand.remove();
+                    } catch (Throwable ignored) {
+                    }
+                    plugin.debugMessage("[Cleanup] Removed hologram for missing grave " + tagUuid, 2);
+                    continue;
+                }
+
+                Location dbLoc = grave.getLocationDeath();
+                if (dbLoc == null || dbLoc.getWorld() == null) {
+                    try {
+                        stand.remove();
+                    } catch (Throwable ignored) {
+                    }
+                    plugin.debugMessage("[Cleanup] Removed hologram for grave " + tagUuid + " (DB location missing)", 2);
+                    continue;
+                }
+
+                String tagLocKey = extractGraveLocationKeyFromStand(stand);
+                if (tagLocKey != null) {
+                    String expectedKey = toLocKey(dbLoc);
+                    if (!locKeysMatch(expectedKey, tagLocKey)) {
+                        try {
+                            stand.remove();
+                        } catch (Throwable ignored) {
+                        }
+                        plugin.debugMessage("[Cleanup] Removed hologram for grave " + tagUuid
+                                + " (location mismatch tag=" + tagLocKey + " db=" + expectedKey + ")", 2);
+                    }
+                }
+            }
+        }
+
+    }
+
+    public Grave hasGrave(UUID graveUUID) {
+        return plugin.getCacheManager().getGraveMap().get(graveUUID);
+    }
+
+    private UUID extractGraveUUIDFromStand(ArmorStand stand) {
+        try {
+            for (String tag : stand.getScoreboardTags()) {
+                if (tag.startsWith("graveHologramGraveUUID:")) {
+                    String raw = tag.substring("graveHologramGraveUUID:".length()).trim();
+                    try { return UUID.fromString(raw); } catch (IllegalArgumentException ignored) { return null; }
+                }
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    private String extractGraveLocationKeyFromStand(ArmorStand stand) {
+        try {
+            for (String tag : stand.getScoreboardTags()) {
+                if (tag.startsWith("graveHologramGraveLocation:")) {
+                    String raw = tag.substring("graveHologramGraveLocation:".length()).trim();
+                    return normalizeLocKey(raw);
+                }
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    /**
+     * Attempts to extract the grave UUID from an entity's scoreboard tags.
+     * Looks for: "graveHologramGraveUUID:graveUUID".
+     *
+     * @param entity The entity to inspect.
+     * @return The parsed UUID if present and valid; otherwise null.
+     */
+    private UUID extractGraveUUIDFromTags(Entity entity) {
+        if (!plugin.getVersionManager().hasScoreboardTags()) {
+            return null;
+        }
+
+        try {
+            for (String tag : entity.getScoreboardTags()) {
+                if (tag.startsWith("graveHologramGraveUUID:")) {
+                    String raw = tag.substring("graveHologramGraveUUID:".length());
+                    try {
+                        return UUID.fromString(raw);
+                    } catch (IllegalArgumentException ignored) {
+                    }
+                    break;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    /**
+     * Build a normalized "world:x:y:z" key from a Bukkit Location using block coordinates.
+     */
+    private String toLocKey(Location loc) {
+        if (loc == null || loc.getWorld() == null) return null;
+        return loc.getWorld().getName() + ":" + loc.getBlockX() + ":" + loc.getBlockY() + ":" + loc.getBlockZ();
+    }
+
+    /**
+     * Try to extract and normalize the grave death-location key from scoreboard tags.
+     * Accepts multiple legacy/raw formats and normalizes to "world:x:y:z".
+     *
+     * @param entity the entity whose tags should be scanned
+     * @return normalized "world:x:y:z" or null if not present/parsable
+     */
+    private String extractGraveLocationKeyFromTags(Entity entity) {
+        if (!plugin.getVersionManager().hasScoreboardTags()) return null;
+
+        try {
+            for (String tag : entity.getScoreboardTags()) {
+                if (tag.startsWith("graveHologramGraveLocation:")) {
+                    String raw = tag.substring("graveHologramGraveLocation:".length()).trim();
+                    return normalizeLocKey(raw);
+                }
+            }
+        } catch (Throwable ignored) {
+            // Defensive for odd platforms/versions
+        }
+        return null;
+    }
+
+    /**
+     * Normalize various possible raw location representations into "world:x:y:z".
+     * Supports:
+     *  - "world:x:y:z" (preferred)
+     *  - "world,x,y,z"
+     *  - Bukkit-like strings containing "name=world" and "x, y, z"
+     */
+    private String normalizeLocKey(String raw) {
+        if (raw == null || raw.isEmpty()) return null;
+
+        // world:x:y:z or world,x,y,z
+        // Group 1 = world, 2 = x, 3 = y, 4 = z
+        Pattern pSimple = Pattern.compile("^([^:,]+)[,:]\\s*(-?\\d+)[,:]\\s*(-?\\d+)[,:]\\s*(-?\\d+)$");
+        Matcher m = pSimple.matcher(raw);
+        if (m.find()) {
+            String world = m.group(1);
+            try {
+                int x = Integer.parseInt(m.group(2));
+                int y = Integer.parseInt(m.group(3));
+                int z = Integer.parseInt(m.group(4));
+                return world + ":" + x + ":" + y + ":" + z;
+            } catch (NumberFormatException ignored) {}
+        }
+
+        Pattern pWorld = Pattern.compile("name=([^},\\s]+)");
+        Pattern pX = Pattern.compile("x=([-\\d.]+)");
+        Pattern pY = Pattern.compile("y=([-\\d.]+)");
+        Pattern pZ = Pattern.compile("z=([-\\d.]+)");
+
+        String world = findFirstGroup(pWorld, raw);
+        String sx = findFirstGroup(pX, raw);
+        String sy = findFirstGroup(pY, raw);
+        String sz = findFirstGroup(pZ, raw);
+
+        if (sx != null && sy != null && sz != null) {
+            try {
+                int x = (int) Math.floor(Double.parseDouble(sx));
+                int y = (int) Math.floor(Double.parseDouble(sy));
+                int z = (int) Math.floor(Double.parseDouble(sz));
+                if (world == null || world.isEmpty()) world = "unknown";
+                return world + ":" + x + ":" + y + ":" + z;
+            } catch (NumberFormatException ignored) {}
+        }
+
+        return null;
+    }
+
+    private String findFirstGroup(Pattern p, String s) {
+        Matcher m = p.matcher(s);
+        return m.find() ? m.group(1) : null;
+    }
+
+    /**
+     * Compare two normalized or raw keys and decide if they represent the same block position.
+     * If either side is raw, it will be normalized first. If a world is "unknown" on either side,
+     * the comparison falls back to only x/y/z.
+     */
+    private boolean locKeysMatch(String expectedKey, String tagKey) {
+        if (expectedKey == null || tagKey == null) return false;
+
+        String a = normalizeLocKey(expectedKey);
+        String b = normalizeLocKey(tagKey);
+        if (a == null || b == null) return false;
+
+        String[] as = a.split(":");
+        String[] bs = b.split(":");
+        if (as.length != 4 || bs.length != 4) return false;
+
+        String aw = as[0], bw = bs[0];
+        int ax = Integer.parseInt(as[1]);
+        int ay = Integer.parseInt(as[2]);
+        int az = Integer.parseInt(as[3]);
+        int bx = Integer.parseInt(bs[1]);
+        int by = Integer.parseInt(bs[2]);
+        int bz = Integer.parseInt(bs[3]);
+
+        boolean worldKnown = !"unknown".equalsIgnoreCase(aw) && !"unknown".equalsIgnoreCase(bw);
+        boolean worldOk = !worldKnown || aw.equals(bw);
+
+        return worldOk && ax == bx && ay == by && az == bz;
     }
 }

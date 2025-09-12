@@ -19,6 +19,7 @@ import me.jay.GravesX.util.pluginsWithoutMavenReposOrUsefulApiDocsThatCauseBugs.
 import com.ranull.graves.util.StringUtil;
 import org.bukkit.*;
 import org.bukkit.block.Block;
+import org.bukkit.block.Skull;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.*;
 import org.bukkit.event.entity.EntityDamageEvent;
@@ -26,11 +27,10 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.scheduler.BukkitTask;
 import org.geysermc.floodgate.api.FloodgateApi;
 
+import java.lang.reflect.Field;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Manages the operations and lifecycle of graves within the Graves plugin.
@@ -44,20 +44,6 @@ public final class GraveManager {
      * </p>
      */
     private final Graves plugin;
-
-    /**
-     * A thread-safe map that holds references to scheduled {@link BukkitTask} instances.
-     * <p>
-     * The key is a unique identifier for the task, typically based on the specific action or entity associated with the task.
-     * This map allows for efficient tracking and management of scheduled tasks, including the ability to cancel or reschedule tasks
-     * if necessary.
-     * </p>
-     * <p>
-     * Example use case: If you have a task related to a specific grave, you might use a unique identifier for that grave as the key
-     * to manage the task associated with it.
-     * </p>
-     */
-    private final ConcurrentHashMap<String, BukkitTask> tasks = new ConcurrentHashMap<>();
 
     /**
      * Initializes the GraveManager with the specified plugin instance.
@@ -95,6 +81,9 @@ public final class GraveManager {
 
         // Remove any elements that have expired or completed their lifecycle
         removeExpiredElements(graveRemoveList, entityDataRemoveList, blockDataRemoveList);
+
+        // Remove lingering holograms
+        plugin.getHologramManager().purgeLingeringHolograms();
     }
 
     /**
@@ -773,13 +762,27 @@ public final class GraveManager {
                 break;
             }
             case CUSTOM: {
-                for (GraveProvider p : RegisterGraveProviders.getAll()) {
+                List<GraveProvider> providers = RegisterGraveProviders.getAll();
+                if (providers.isEmpty()) break;
+
+                for (GraveProvider p : providers) {
+                    if (p == null) continue;
                     try {
                         if (p.supports(entityData) && p.removeEntityData(entityData)) {
+                            plugin.getHologramManager().removeHologram(entityData);
                             return;
                         }
                     } catch (Throwable t) {
-                        plugin.getLogger().warning("[CustomGraveProvider " + p.id() + "] removeEntityData() failed: " + t.getMessage());
+                        String pid;
+                        try {
+                            pid = String.valueOf(p.id());
+                        }
+                        catch (Throwable ignored) {
+                            pid = p.getClass().getName();
+                        }
+
+                        plugin.getLogger().warning("[CustomGraveProvider " + pid + "] removeEntityData() failed: " + t.getMessage());
+                        plugin.logStackTrace(t);
                     }
                 }
                 break;
@@ -893,7 +896,7 @@ public final class GraveManager {
         for (Grave grave : plugin.getCacheManager().getGraveMap().values()) {
             if (!isGravePlaced(grave)) {
                 plugin.debugMessage("Grave " + grave.getUUID() + " missing from world. Regenerating at saved location.", 1);
-                plugin.getGraveManager().placeGrave(grave.getLocationDeath(), grave); // Or grave.getLocation()
+                plugin.getGraveManager().placeGrave(grave.getLocationDeath(), grave);
             }
         }
     }
@@ -912,8 +915,86 @@ public final class GraveManager {
         if (location == null || location.getWorld() == null) return false;
 
         Block block = location.getBlock();
-        if (!block.isPassable()) {
-            return true;
+        if (isHeadBlock(block)) {
+            try {
+                if (block.getState() instanceof Skull) {
+                    Skull skull = (Skull) block.getState();
+
+                    int headType = plugin.getConfig("block.head.type", grave).getInt("block.head.type");
+                    String headBase64 = plugin.getConfig("block.head.base64", grave).getString("block.head.base64");
+                    String headName   = plugin.getConfig("block.head.name", grave).getString("block.head.name");
+
+                    UUID expectedUUID = null;
+                    String expectedName = null;
+                    String expectedTex  = null;
+
+                    if (headType == 0) {
+                        if (grave.getOwnerType() == EntityType.PLAYER) {
+                            expectedUUID = grave.getOwnerUUID();
+                            if (expectedUUID == null) expectedName = grave.getOwnerName();
+                        } else if (grave.getOwnerTexture() != null && !grave.getOwnerTexture().isEmpty()) {
+                            expectedTex = grave.getOwnerTexture();
+                        } else if (headBase64 != null && !headBase64.isEmpty()) {
+                            expectedTex = headBase64;
+                        }
+                    } else if (headType == 1 && headBase64 != null && !headBase64.isEmpty()) {
+                        expectedTex = headBase64;
+                    } else if (headType == 2 && headName != null && headName.length() <= 16) {
+                        expectedName = headName;
+                    }
+
+                    boolean match = false;
+
+                    if (expectedTex != null && !expectedTex.isEmpty()) {
+                        try {
+                            Field profileField = skull.getClass().getDeclaredField("profile");
+                            profileField.setAccessible(true);
+                            Object gp = profileField.get(skull);
+                            if (gp != null) {
+                                Collection<?> props;
+                                try {
+                                    Object map = gp.getClass().getMethod("properties").invoke(gp);
+                                    props = (Collection<?>) map.getClass().getMethod("get", Object.class).invoke(map, "textures");
+                                } catch (NoSuchMethodException e) {
+                                    Object map = gp.getClass().getMethod("getProperties").invoke(gp);
+                                    props = (Collection<?>) map.getClass().getMethod("get", Object.class).invoke(map, "textures");
+                                }
+                                if (props != null && !props.isEmpty()) {
+                                    Object prop = props.iterator().next();
+                                    String value;
+                                    try { value = (String) prop.getClass().getMethod("value").invoke(prop); }
+                                    catch (NoSuchMethodException nsme) { value = (String) prop.getClass().getMethod("getValue").invoke(prop); }
+                                    if (expectedTex.equals(value)) match = true;
+                                }
+                            }
+                        } catch (Throwable ignored) {}
+                    }
+
+                    if (!match && (expectedUUID != null || (expectedName != null && !expectedName.isEmpty()))) {
+                        try {
+                            Object owning = Skull.class.getMethod("getOwningPlayer").invoke(skull);
+                            if (owning != null) {
+                                if (expectedUUID != null) {
+                                    UUID id = (UUID) owning.getClass().getMethod("getUniqueId").invoke(owning);
+                                    if (expectedUUID.equals(id)) match = true;
+                                }
+                                if (!match && expectedName != null) {
+                                    String n = (String) owning.getClass().getMethod("getName").invoke(owning);
+                                    if (n != null && n.equalsIgnoreCase(expectedName)) match = true;
+                                }
+                            } else if (expectedName != null) {
+                                try {
+                                    String legacy = (String) Skull.class.getMethod("getOwner").invoke(skull);
+                                    if (legacy != null && legacy.equalsIgnoreCase(expectedName)) match = true;
+                                } catch (Throwable ignored) {}
+                            }
+                        } catch (Throwable ignored) {}
+                    }
+
+                    if (match) return true;
+                }
+            } catch (Throwable ignored) {
+            }
         }
 
         Collection<Entity> nearbyEntities = location.getWorld().getNearbyEntities(location, 0.49, 0.49, 0.49);
@@ -940,6 +1021,14 @@ public final class GraveManager {
         }
 
         return false;
+    }
+
+    private boolean isHeadBlock(Block block) {
+        final String n = block.getType().name();
+        return "PLAYER_HEAD".equals(n)
+                || "PLAYER_WALL_HEAD".equals(n)
+                || "SKULL".equals(n)
+                || "LEGACY_SKULL".equals(n);
     }
 
     /**
@@ -1886,5 +1975,11 @@ public final class GraveManager {
         }
 
         return false;
+    }
+
+    private static long withJitter(long baseMs) {
+        long j = java.util.concurrent.ThreadLocalRandom.current().nextLong(-250, 251); // ±250ms
+        long v = baseMs + j;
+        return v < 0 ? 0 : v;
     }
 }
