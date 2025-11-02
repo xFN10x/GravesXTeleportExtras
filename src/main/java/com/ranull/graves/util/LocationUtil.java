@@ -12,6 +12,8 @@ import java.util.List;
  */
 public final class LocationUtil {
 
+    private LocationUtil() {}
+
     /**
      * Rounds the given location's coordinates to the nearest whole numbers.
      *
@@ -20,15 +22,8 @@ public final class LocationUtil {
      */
     @Nullable
     public static Location roundLocation(@Nullable Location location) {
-        if (location == null) return null;
-        World w = location.getWorld();
-        if (w == null) return null;
-
-        double x = Math.round(location.getX());
-        double y = Math.round(location.getY());
-        double z = Math.round(location.getZ());
-
-        return new Location(w, x, y, z);
+        return new Location(location.getWorld(), Math.round(location.getBlockX()), Math.round(location.getY()),
+                Math.round(location.getBlockZ()));
     }
 
     /**
@@ -131,7 +126,7 @@ public final class LocationUtil {
 
             return new Location(world, x, y, z, yaw, pitch);
         } catch (NumberFormatException e) {
-            return null; // Invalid number format
+            return null;
         }
     }
 }

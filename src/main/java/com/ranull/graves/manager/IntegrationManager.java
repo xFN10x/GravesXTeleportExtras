@@ -19,12 +19,14 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 import java.util.StringJoiner;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The {@code IntegrationManager} class is responsible for managing the integration of various external plugins with the Graves plugin.
  * This class handles loading, unloading, and checking the availability of these integrations, allowing the Graves plugin to interact with other plugins.
  */
-public final class IntegrationManager {
+public class IntegrationManager {
     /**
      * The main plugin instance associated with Graves.
      * <p>
@@ -164,14 +166,6 @@ public final class IntegrationManager {
     private PlayerNPC playerNPC;
 
     /**
-     * Integration with CitizensNPC, a plugin for creating NPCs.
-     * <p>
-     * This {@link CitizensNPC} instance represents the integration with the Citizens plugin, used for creating and managing NPCs in the game.
-     * </p>
-     */
-    private CitizensNPC citizensNPC;
-
-    /**
      * Integration with PlaceholderAPI, a plugin for managing placeholders.
      * <p>
      * This {@link PlaceholderAPI} instance represents the integration with the PlaceholderAPI plugin, used for managing and resolving placeholders.
@@ -256,7 +250,6 @@ public final class IntegrationManager {
         loadMineDown();
         loadChestSort();
         loadPlayerNPC();
-        loadCitizensNPC();
         loadItemBridge();
         loadPlaceholderAPI();
         loadCompatibilityWarnings();
@@ -310,10 +303,6 @@ public final class IntegrationManager {
 
         if (playerNPC != null) {
             playerNPC.unregisterListeners();
-        }
-
-        if (citizensNPC != null) {
-            citizensNPC.unregisterListeners();
         }
     }
 
@@ -397,7 +386,7 @@ public final class IntegrationManager {
 
     /**
      * @deprecated Use Nexo instead. Unmaintained and will be for the forseeable future.
-     * 
+     *
      * Returns the instance of the Oraxen integration, if it is loaded.
      *
      * @return The {@code Oraxen} integration instance, or null if not loaded.
@@ -498,15 +487,6 @@ public final class IntegrationManager {
     }
 
     /**
-     * Returns the instance of the CitizensNPC integration, if it is loaded.
-     *
-     * @return The {@code CitizensNPC} integration instance, or null if not loaded.
-     */
-    public CitizensNPC getCitizensNPC() {
-        return citizensNPC;
-    }
-
-    /**
      * Returns the instance of the LuckPermsHandler, if it is loaded.
      *
      * @return The {@code LuckPermsHandler} instance, or null if not loaded.
@@ -604,7 +584,6 @@ public final class IntegrationManager {
 
     /**
      * @deprecated Use Nexo instead. Unmaintained and will be for the forseeable future.
-     * 
      * Checks if Oraxen integration is loaded.
      *
      * @return {@code true} if Oraxen integration is loaded, {@code false} otherwise.
@@ -657,15 +636,6 @@ public final class IntegrationManager {
      */
     public boolean hasPlayerNPC() {
         return playerNPC != null;
-    }
-
-    /**
-     * Checks if CitizensNPC integration is loaded.
-     *
-     * @return {@code true} if CitizensNPC integration is loaded, {@code false} otherwise.
-     */
-    public boolean hasCitizensNPC() {
-        return citizensNPC != null;
     }
 
     /**
@@ -922,7 +892,7 @@ public final class IntegrationManager {
 
     /**
      * @deprecated Use Nexo instead. Unmaintained and will be for the forseeable future.
-     * 
+     *
      * Loads the Oraxen integration if enabled in the configuration.
      */
     @Deprecated
@@ -1050,23 +1020,6 @@ public final class IntegrationManager {
             }
         } else {
             fancyNpcs = null;
-        }
-    }
-
-    /**
-     * Loads the CitizensNPC integration if enabled in the configuration.
-     */
-    private void loadCitizensNPC() {
-        if (plugin.getConfig().getBoolean("settings.integration.citizens.enabled", true)) {
-            Plugin citizensPlugin = plugin.getServer().getPluginManager().getPlugin("Citizens");
-
-            if (citizensPlugin != null && citizensPlugin.isEnabled()) {
-                citizensNPC = new CitizensNPC(plugin);
-
-                plugin.integrationMessage("Hooked into " + citizensPlugin.getName() + " " + citizensPlugin.getDescription().getVersion() + ".");
-            }
-        } else {
-            citizensNPC = null;
         }
     }
 
@@ -1370,7 +1323,7 @@ public final class IntegrationManager {
      * @return a sanitized version string with only digits and dots
      */
     private static String extractNumericVersion(String input) {
-        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("(\\d+(\\.\\d+)*)").matcher(input);
+        Matcher matcher = Pattern.compile("(\\d+(\\.\\d+)*)").matcher(input);
         return matcher.find() ? matcher.group(1) : "0";
     }
 

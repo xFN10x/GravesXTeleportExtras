@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-public final class CacheManager {
+public class CacheManager {
     /**
      * A map of grave UUIDs to their corresponding {@link Grave} objects.
      * <p>
@@ -145,8 +145,8 @@ public final class CacheManager {
         long oldestTime = Long.MAX_VALUE;
         Grave oldestGrave = null;
 
-        for (Grave cur : graveMap.values()) { // Iterate over all graves
-            if (cur.getOwnerUUID().equals(playerUUID)) { // Check if the grave belongs to the specified player
+        for (Grave cur : graveMap.values()) {
+            if (cur.getOwnerUUID().equals(playerUUID)) {
                 long curTime = cur.getTimeCreation();
                 if (curTime < oldestTime) {
                     oldestTime = curTime;

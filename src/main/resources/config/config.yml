@@ -1,5 +1,5 @@
 # Config version, you should never manually change this.
-config-version: 21
+config-version: 23
 
 ###############
 # Core Config #
@@ -347,14 +347,6 @@ settings:
     # Source: https://www.spigotmc.org/resources/playernpc.93625/
     playernpc:
       # Should PlayerNPC integration be enabled.
-      enabled: false
-
-    ###############
-    # CitizensNPC #
-    ###############
-    # Source: https://www.spigotmc.org/resources/citizens.13811/
-    citizensnpc:
-      # Should Citizens integration be enabled. Experimental
       enabled: false
 
     ###############

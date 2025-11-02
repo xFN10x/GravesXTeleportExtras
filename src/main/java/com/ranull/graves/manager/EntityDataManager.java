@@ -4,10 +4,14 @@ import com.ranull.graves.Graves;
 import com.ranull.graves.data.ChunkData;
 import com.ranull.graves.data.EntityData;
 import com.ranull.graves.type.Grave;
+import org.bukkit.Chunk;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.entity.Entity;
 
+import java.lang.reflect.Method;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Manages entity data and interactions within the Graves plugin.
@@ -21,6 +25,14 @@ public class EntityDataManager {
      * </p>
      */
     private final Graves plugin;
+
+    private static Method SERVER_GET_ENTITY;
+
+    static {
+        try {
+            SERVER_GET_ENTITY = org.bukkit.Server.class.getMethod("getEntity", UUID.class);
+        } catch (Throwable ignored) { /* not available */ }
+    }
 
     /**
      * Initializes the EntityDataManager with the specified plugin instance.
@@ -147,10 +159,27 @@ public class EntityDataManager {
         Map<EntityData, Entity> entityDataMap = new HashMap<>();
 
         for (EntityData entityData : entityDataList) {
-            for (Entity entity : entityData.getLocation().getChunk().getEntities()) {
-                if (entity.getUniqueId().equals(entityData.getUUIDEntity())) {
-                    entityDataMap.put(entityData, entity);
-                }
+            Location location = entityData.getLocation();
+            World world = location.getWorld();
+            if (world == null) {
+                continue;
+            }
+
+            Entity found = fastGetEntity(entityData.getUUIDEntity());
+            if (found != null) {
+                entityDataMap.put(entityData, found);
+                continue;
+            }
+
+            int cx = location.getBlockX() >> 4;
+            int cz = location.getBlockZ() >> 4;
+            if (!world.isChunkLoaded(cx, cz)) {
+                continue;
+            }
+
+            Entity scanned = scanChunkForEntityRegionSafe(world, cx, cz, entityData.getUUIDEntity(), location);
+            if (scanned != null) {
+                entityDataMap.put(entityData, scanned);
             }
         }
 
@@ -166,13 +195,79 @@ public class EntityDataManager {
         List<EntityData> removedEntityDataList = new ArrayList<>();
 
         for (EntityData entityData : entityDataList) {
-            for (Entity entity : entityData.getLocation().getChunk().getEntities()) {
-                if (entity.getUniqueId().equals(entityData.getUUIDEntity())) {
-                    removedEntityDataList.add(entityData);
-                }
+            Location location = entityData.getLocation();
+            World world = location.getWorld();
+            if (world == null) {
+                continue;
+            }
+
+            // If we can resolve the entity quickly/safely, mark for removal.
+            Entity found = fastGetEntity(entityData.getUUIDEntity());
+            if (found != null) {
+                removedEntityDataList.add(entityData);
+                continue;
+            }
+
+            int cx = location.getBlockX() >> 4;
+            int cz = location.getBlockZ() >> 4;
+            if (!world.isChunkLoaded(cx, cz)) {
+                continue;
+            }
+
+            Entity scanned = scanChunkForEntityRegionSafe(world, cx, cz, entityData.getUUIDEntity(), location);
+            if (scanned != null) {
+                removedEntityDataList.add(entityData);
             }
         }
 
         plugin.getDataManager().removeEntityData(removedEntityDataList);
+    }
+
+    /**
+     * Try fast, version-friendly entity lookup:
+     *  - World#getEntity(UUID) when present (Paper/Bukkit newer)
+     *  - Server#getEntity(UUID) when present (Paper)
+     * Returns null if unavailable or not found.
+     */
+    private Entity fastGetEntity(UUID uuid) {
+        try {
+            if (SERVER_GET_ENTITY != null) {
+                Object e = SERVER_GET_ENTITY.invoke(plugin.getServer(), uuid);
+                if (e instanceof Entity) return (Entity) e;
+            }
+        } catch (Throwable ignored) { /* continue */ }
+
+        return null;
+    }
+
+    /**
+     * Scan a loaded chunk for a specific entity UUID on the correct region thread if possible.
+     * If a region scheduler is available, the scan is executed in-region and we await briefly.
+     * If not (legacy servers), we fall back to a direct on-thread scan (original behavior).
+     */
+    private Entity scanChunkForEntityRegionSafe(World world, int cx, int cz, UUID uuid, Location anchor) {
+        if (plugin.getVersionManager().isFolia()) {
+            final AtomicReference<Entity> ref = new AtomicReference<>(null);
+
+            plugin.getGravesXScheduler().execute(anchor, () -> {
+                Chunk chunk = world.getChunkAt(cx, cz);
+                for (Entity e : chunk.getEntities()) {
+                    if (uuid.equals(e.getUniqueId())) {
+                        ref.set(e);
+                        break;
+                    }
+                }
+            });
+
+            return ref.get();
+        }
+
+        Chunk chunk = world.getChunkAt(cx, cz);
+        for (Entity e : chunk.getEntities()) {
+            if (uuid.equals(e.getUniqueId())) {
+                return e;
+            }
+        }
+        return null;
     }
 }

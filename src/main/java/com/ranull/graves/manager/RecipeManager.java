@@ -8,7 +8,10 @@ import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.inventory.*;
+import org.bukkit.inventory.ItemFlag;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.Recipe;
+import org.bukkit.inventory.ShapedRecipe;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.components.CustomModelDataComponent;
 import org.bukkit.persistence.PersistentDataType;
@@ -23,7 +26,7 @@ import java.util.Map;
 /**6
  * Manages custom recipes for the Graves plugin.
  */
-public final class RecipeManager {
+public class RecipeManager {
     /**
      * The main plugin instance associated with Graves.
      * <p>
@@ -81,7 +84,6 @@ public final class RecipeManager {
      * Unloads the custom recipes.
      */
     public void unload() {
-
         try {
             Iterator<Recipe> iterator = Bukkit.recipeIterator();
             while (iterator.hasNext()) {
@@ -108,8 +110,9 @@ public final class RecipeManager {
      */
     public ItemStack getToken(String token) {
         if (plugin.getConfig().isConfigurationSection("settings.token." + token)) {
-            Material material = Material.matchMaterial(plugin.getConfig()
-                    .getString("settings.token." + token + ".material", "SUNFLOWER"));
+            Material material = Material.matchMaterial(
+                    plugin.getConfig().getString("settings.token." + token + ".material", "SUNFLOWER")
+            );
             ItemStack itemStack = new ItemStack(material != null ? material : Material.CHEST);
 
             setRecipeData(token, itemStack);
@@ -120,17 +123,21 @@ public final class RecipeManager {
                 if (itemMeta != null) {
                     String name;
                     if (plugin.getIntegrationManager().hasMiniMessage()) {
-                        String newName = StringUtil.parseString("&f" + plugin.getConfig()
-                                .getString("settings.token." + token + ".name"), plugin);
+                        String newName = StringUtil.parseString(
+                                "&f" + plugin.getConfig().getString("settings.token." + token + ".name"),
+                                plugin
+                        );
                         name = MiniMessage.parseString(newName);
                     } else {
-                        name = ChatColor.WHITE + StringUtil.parseString(plugin.getConfig()
-                                .getString("settings.token." + token + ".name"), plugin);
+                        name = ChatColor.WHITE + StringUtil.parseString(
+                                plugin.getConfig().getString("settings.token." + token + ".name"),
+                                plugin
+                        );
                     }
 
                     List<String> loreList = new ArrayList<>();
-                    int customModelData = plugin.getConfig().getInt("settings.token." + token
-                            + ".model-data", -1);
+                    int customModelData = plugin.getConfig()
+                            .getInt("settings.token." + token + ".model-data", -1);
 
                     for (String string : plugin.getConfig().getStringList("settings.token." + token + ".lore")) {
                         if (plugin.getIntegrationManager().hasMiniMessage()) {
@@ -149,9 +156,7 @@ public final class RecipeManager {
                     if (customModelData > -1) {
                         try {
                             CustomModelDataComponent cmdComponent = itemMeta.getCustomModelDataComponent();
-
                             cmdComponent.setFloats(Collections.singletonList((float) customModelData));
-
                             itemMeta.setCustomModelDataComponent(cmdComponent);
                         } catch (Exception e) {
                             itemMeta.setCustomModelData(customModelData);
@@ -205,7 +210,7 @@ public final class RecipeManager {
             }
 
             Map<Character, Material> ingredients = new HashMap<>();
-            StringBuilder[] shapeLines = new StringBuilder[] {
+            StringBuilder[] shapeLines = new StringBuilder[]{
                     new StringBuilder(), new StringBuilder(), new StringBuilder()
             };
 
@@ -215,10 +220,10 @@ public final class RecipeManager {
                 String[] parts = lineList.get(row).split(" ");
                 for (String part : parts) {
                     char ingredientChar = getChar(recipeKey);
-                    Material material = Material.matchMaterial(part);
+                    Material mat = Material.matchMaterial(part);
 
-                    if (material != null && material != Material.AIR) {
-                        ingredients.put(ingredientChar, material);
+                    if (mat != null && mat != Material.AIR) {
+                        ingredients.put(ingredientChar, mat);
                         shapeLines[row].append(ingredientChar);
                     } else {
                         shapeLines[row].append(' ');
@@ -277,8 +282,11 @@ public final class RecipeManager {
             ItemMeta itemMeta = itemStack.getItemMeta();
 
             if (itemMeta != null) {
-                itemMeta.getPersistentDataContainer().set(new NamespacedKey(plugin, "token"),
-                        PersistentDataType.STRING, token);
+                itemMeta.getPersistentDataContainer().set(
+                        new NamespacedKey(plugin, "token"),
+                        PersistentDataType.STRING,
+                        token
+                );
                 itemStack.setItemMeta(itemMeta);
             }
         }
@@ -342,7 +350,8 @@ public final class RecipeManager {
      * @return True if the item stack is a token, otherwise false.
      */
     public boolean isToken(ItemStack itemStack) {
-        return plugin.getVersionManager().hasPersistentData() && itemStack.getItemMeta() != null
+        return plugin.getVersionManager().hasPersistentData()
+                && itemStack.getItemMeta() != null
                 && itemStack.getItemMeta().getPersistentDataContainer()
                 .has(new NamespacedKey(plugin, "token"), PersistentDataType.STRING);
     }
@@ -354,27 +363,17 @@ public final class RecipeManager {
      * @return The character for the recipe slot.
      */
     private char getChar(int count) {
-        switch (count) {
-            case 1:
-                return 'A';
-            case 2:
-                return 'B';
-            case 3:
-                return 'C';
-            case 4:
-                return 'D';
-            case 5:
-                return 'E';
-            case 6:
-                return 'F';
-            case 7:
-                return 'G';
-            case 8:
-                return 'H';
-            case 9:
-                return 'I';
-            default:
-                return '*';
-        }
+        return switch (count) {
+            case 1 -> 'A';
+            case 2 -> 'B';
+            case 3 -> 'C';
+            case 4 -> 'D';
+            case 5 -> 'E';
+            case 6 -> 'F';
+            case 7 -> 'G';
+            case 8 -> 'H';
+            case 9 -> 'I';
+            default -> '*';
+        };
     }
 }

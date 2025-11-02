@@ -18,7 +18,9 @@ import java.util.jar.JarFile;
 /**
  * Utility class for copying resources from a plugin's JAR file to the file system.
  */
-public final class ResourceUtil {
+public class ResourceUtil {
+
+    private ResourceUtil() {}
 
     /**
      * Copies resources from the plugin's JAR file to the specified output path.

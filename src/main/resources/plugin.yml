@@ -11,6 +11,8 @@ authors:
 load: POSTWORLD
 website: https://www.spigotmc.org/resources/gravesx.118271/
 
+folia-supported: true
+
 loadbefore:
   - XItemsRemover
   - ExplodeAny
@@ -33,7 +35,6 @@ softdepend:
   - ItemBridge
   - PlayerNPC
   - Skript
-  - Citizens
   - FancyNpcs
   - Geyser-Spigot
   - floodgate
@@ -70,7 +71,7 @@ commands:
       - gravemodule
       - gmodule
       - gravemod
-      - gm
+      - gmod
       - gravesxmodule
       - gravesxmod
       - gxmod

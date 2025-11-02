@@ -2,6 +2,7 @@ package com.ranull.graves.data;
 
 import org.bukkit.Location;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.UUID;
 
@@ -9,6 +10,10 @@ import java.util.UUID;
  * Represents data for an entity associated with a grave, including its location, UUID, and type.
  */
 public class EntityData implements Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
+
     /**
      * The location of the grave.
      * <p>
@@ -140,11 +145,6 @@ public class EntityData implements Serializable {
          * Represents an entity from PlayerNPC plugin.
          */
         PLAYERNPC,
-
-        /**
-         * Represents an entity from CitizensNPC plugin.
-         */
-        CITIZENSNPC,
 
         /**
          * Represents a custom entry, whether that be an addon or module.

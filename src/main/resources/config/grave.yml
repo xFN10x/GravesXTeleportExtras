@@ -32,6 +32,8 @@ settings:
         smite-death-location: true
         # Should we actually smite a death location? Keep note enabling this will hurt entities or destroy ground items if items are ignored. Retained as some use it.
         actually-smite-death-location: false
+        # Should we run a task to check for missing graves? NOTE THAT THIS CAN CAUSE TPS TO DROP
+        check-missing-graves: false
 
       #############
       # Placement #
@@ -644,36 +646,6 @@ settings:
           armor: true
           hand: true
 
-      ############
-      # Citizens #
-      ############
-      # The option requires Citizens, you must have this installed to use corpses, only supported on 1.17+.
-      citizens:
-        corpse:
-          # Should we create a corpse?
-          enabled: false
-          # What pose should the entity use? https://jd.citizensnpcs.co/net/citizensnpcs/util/PlayerAnimation.html
-          pose: "SLEEP"
-          # Corpse offset X.
-          offset:
-            x: -0.5
-            # Corpse offset Y.
-            y: 0
-            # Corpse offset Z.
-            z: -0.5
-          # Should the corpse wear the player's armor?
-          armor: true
-          # Should the corpse hold the player's items?
-          hand: true
-          # Should corpses be collidable?
-          collide: false
-          # Should corpses glow?
-          glow:
-            # Glow color.
-            color: RED
-            # Should corpses glow?
-            enabled: false
-
       ################
       # NoteBlockAPI #
       ################
@@ -802,6 +774,16 @@ settings:
           enchantment-contains:
             - ""
             #- "Custom"
+
+          # Ignore items if NamespacedKeys contains minecraft:key or plugin:key
+          namespacedkeys:
+            - ""
+            #- "ecoenchants:soulbound"
+
+          # Ignore items if any NamespacedKeys contains the following names
+          namespacedkeys-contains:
+            - ""
+            #- "soulbound"
 
         block:
           # Materials in which graves will not be created.

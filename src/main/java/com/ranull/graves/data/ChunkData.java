@@ -3,6 +3,7 @@ package com.ranull.graves.data;
 import org.bukkit.Location;
 import org.bukkit.World;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
@@ -12,6 +13,10 @@ import java.util.UUID;
  * Represents data for a specific chunk in the game world, including block and entity data.
  */
 public class ChunkData implements Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
+
     /**
      * The world in which the grave is located.
      * <p>
@@ -65,6 +70,25 @@ public class ChunkData implements Serializable {
         this.z = location.getBlockZ() >> 4;
         this.blockDataMap = new HashMap<>();
         this.entityDataMap = new HashMap<>();
+    }
+
+    /**
+     * Constructs a new ChunkData instance using a world name and chunk coordinates (Folia-safe).
+     * <p>
+     * This constructor avoids calling methods that might trigger synchronous chunk loads on Folia.
+     * It resolves the {@link org.bukkit.World} by name without touching chunk APIs.
+     * </p>
+     *
+     * @param worldName the name of the world containing the chunk
+     * @param chunkX    the chunk X coordinate
+     * @param chunkZ    the chunk Z coordinate
+     */
+    public ChunkData(String worldName, int chunkX, int chunkZ) {
+        this.world = org.bukkit.Bukkit.getWorld(worldName);
+        this.x = chunkX;
+        this.z = chunkZ;
+        this.blockDataMap = new java.util.HashMap<>();
+        this.entityDataMap = new java.util.HashMap<>();
     }
 
     /**

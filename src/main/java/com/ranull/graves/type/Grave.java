@@ -9,6 +9,7 @@ import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.*;
 
@@ -17,6 +18,10 @@ import java.util.*;
  * that the grave belongs to, including inventory, location, and various other attributes.
  */
 public class Grave implements InventoryHolder, Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
+
     /**
      * Unique identifier for this instance.
      */
@@ -30,12 +35,12 @@ public class Grave implements InventoryHolder, Serializable {
     /**
      * Map of equipment items, keyed by their respective equipment slots.
      */
-    private Map<EquipmentSlot, ItemStack> equipmentMap;
+    private Map<EquipmentSlot, ItemStack> equipmentMap = new EnumMap<>(EquipmentSlot.class);
 
     /**
      * List of permissions associated with this instance.
      */
-    private List<String> permissionList;
+    private List<String> permissionList = new ArrayList<>();
 
     /**
      * Data representing the location of death.
@@ -187,7 +192,7 @@ public class Grave implements InventoryHolder, Serializable {
      * @param equipmentMap The equipment map to set.
      */
     public void setEquipmentMap(Map<EquipmentSlot, ItemStack> equipmentMap) {
-        this.equipmentMap = equipmentMap;
+        this.equipmentMap = equipmentMap != null ? equipmentMap : new EnumMap<>(EquipmentSlot.class);
     }
 
     /**
@@ -223,7 +228,7 @@ public class Grave implements InventoryHolder, Serializable {
      * @param permissionList The permission list to set.
      */
     public void setPermissionList(List<String> permissionList) {
-        this.permissionList = permissionList;
+        this.permissionList = permissionList != null ? permissionList : new ArrayList<>();
     }
 
     /**
@@ -236,12 +241,24 @@ public class Grave implements InventoryHolder, Serializable {
     }
 
     /**
+     * Folia-friendly accessor for the raw serialized location data.
+     * <p>
+     * Use this to schedule region-bound tasks with your scheduler before touching the world.
+     * </p>
+     *
+     * @return the underlying {@link LocationData}, or {@code null} if unset.
+     */
+    public LocationData getLocationDeathData() {
+        return locationDeath;
+    }
+
+    /**
      * Sets the death location for the grave.
      *
      * @param locationDeath The death location to set.
      */
     public void setLocationDeath(Location locationDeath) {
-        this.locationDeath = new LocationData(locationDeath);
+        this.locationDeath = locationDeath != null ? new LocationData(locationDeath) : null;
     }
 
     /**
@@ -711,7 +728,7 @@ public class Grave implements InventoryHolder, Serializable {
      */
     @Deprecated
     public void setLocation(Location location) {
-        this.locationDeath = new LocationData(location);
+        this.locationDeath = location != null ? new LocationData(location) : null;
     }
 
     /**

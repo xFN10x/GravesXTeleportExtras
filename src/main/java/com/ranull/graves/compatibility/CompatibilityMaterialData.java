@@ -2,11 +2,11 @@ package com.ranull.graves.compatibility;
 
 import com.mojang.authlib.GameProfile;
 import com.mojang.authlib.properties.Property;
-import com.mojang.authlib.properties.PropertyMap;
 import com.ranull.graves.Graves;
 import com.ranull.graves.data.BlockData;
 import com.ranull.graves.type.Grave;
 import com.ranull.graves.util.BlockFaceUtil;
+import dev.cwhead.GravesX.util.SkinTextureUtil_post_1_21_9;
 import me.jay.GravesX.util.SkinTextureUtil;
 import org.bukkit.*;
 import org.bukkit.block.*;
@@ -25,7 +25,7 @@ import java.util.Collection;
 /**
  * An implementation of the Compatibility interface for handling material data.
  */
-public final class CompatibilityMaterialData implements Compatibility {
+public class CompatibilityMaterialData implements Compatibility {
 
     /**
      * Sets the block data for a given location and material, associating it with a grave.
@@ -40,7 +40,7 @@ public final class CompatibilityMaterialData implements Compatibility {
     public BlockData setBlockData(Location location, Material material, Grave grave, Graves plugin) {
         if (material != null) {
             Block block = location.getBlock();
-            String replaceMaterial = location.getBlock().getType().name();
+            String replaceMaterial = block.getType().name();
 
             // Air
             if (block.getType().name().equals("NETHER_PORTAL") || block.getState().getData() instanceof Openable) {
@@ -48,7 +48,7 @@ public final class CompatibilityMaterialData implements Compatibility {
             }
 
             // Set type
-            location.getBlock().setType(material);
+            block.setType(material);
 
             // Update skull
             if ((material.name().equals("SKULL") || material.name().equals("PLAYER_HEAD")) && block.getState() instanceof Skull) {
@@ -77,6 +77,7 @@ public final class CompatibilityMaterialData implements Compatibility {
     public boolean canBuild(Player player, Location location, Graves plugin) {
         Plugin landProtectionAddonPlugin = plugin.getServer().getPluginManager().getPlugin("GravesXAddon-LandProtection");
         if (landProtectionAddonPlugin != null && landProtectionAddonPlugin.isEnabled()) return true;
+
         Block placedBlock = location.getBlock();
         BlockState replacedBlockState = placedBlock.getState();
         Block placedAgainst = null;
@@ -148,9 +149,7 @@ public final class CompatibilityMaterialData implements Compatibility {
     public boolean hasTitleData(Block block) {
         BlockState state = block.getState();
 
-        if (state instanceof Sign) {
-            Sign sign = (Sign) state;
-
+        if (state instanceof Sign sign) {
             try {
                 Class<?> sideClass = Class.forName("org.bukkit.block.sign.Side");
                 Object frontSide = sign.getClass().getMethod("getSide", sideClass)
@@ -178,12 +177,10 @@ public final class CompatibilityMaterialData implements Compatibility {
                 }
             }
 
-        } else if (state instanceof Skull) {
-            Skull skull = (Skull) state;
+        } else if (state instanceof Skull skull) {
             return skull.hasOwner();
 
-        } else if (state instanceof Nameable) {
-            Nameable nameable = (Nameable) state;
+        } else if (state instanceof Nameable nameable) {
             String name = nameable.getCustomName();
             return name != null && !name.trim().isEmpty();
         }
@@ -214,7 +211,12 @@ public final class CompatibilityMaterialData implements Compatibility {
             if (headType == 0) {
                 if (grave.getOwnerType() == EntityType.PLAYER) {
                     if (!useFallback && headBase64 != null && !headBase64.isEmpty()) {
-                        SkinTextureUtil.setSkullBlockTexture(skull, grave.getOwnerName(), headBase64);
+                        if (plugin.getVersionManager().isPost1_21_9()) {
+                            SkinTextureUtil_post_1_21_9.setSkullBlockTexture(skull, grave.getOwnerName(), headBase64);
+
+                        } else {
+                            SkinTextureUtil.setSkullBlockTexture(skull, grave.getOwnerName(), headBase64);
+                        }
                     } else {
                         OfflinePlayer player = Bukkit.getOfflinePlayer(grave.getOwnerName());
                         try {
@@ -224,18 +226,34 @@ public final class CompatibilityMaterialData implements Compatibility {
                         }
                     }
                 } else {
-                    skull.setOwner(grave.getOwnerName());
+                    try {
+                        skull.setOwningPlayer(plugin.getServer().getOfflinePlayer(grave.getOwnerName()));
+                    } catch (NoSuchMethodError | NoClassDefFoundError e) {
+                        skull.setOwner(grave.getOwnerName());
+                    }
                 }
 
             } else if (headType == 1 && headBase64 != null && !headBase64.isEmpty()) {
                 if (!useFallback) {
-                    SkinTextureUtil.setSkullBlockTexture(skull, grave.getOwnerName(), headBase64);
+                    if (plugin.getVersionManager().isPost1_21_9()) {
+                        SkinTextureUtil_post_1_21_9.setSkullBlockTexture(skull, grave.getOwnerName(), headBase64);
+                    } else {
+                        SkinTextureUtil.setSkullBlockTexture(skull, grave.getOwnerName(), headBase64);
+                    }
                 } else {
-                    skull.setOwner(grave.getOwnerName());
+                    try {
+                        skull.setOwningPlayer(plugin.getServer().getOfflinePlayer(grave.getOwnerName()));
+                    } catch (NoSuchMethodError | NoClassDefFoundError e) {
+                        skull.setOwner(grave.getOwnerName());
+                    }
                 }
 
             } else if (headType == 2 && headName != null && headName.length() <= 16) {
-                skull.setOwner(headName);
+                try {
+                    skull.setOwningPlayer(plugin.getServer().getOfflinePlayer(headName));
+                } catch (NoSuchMethodError | NoClassDefFoundError e) {
+                    skull.setOwner(headName);
+                }
             }
         } catch (Exception e) {
             plugin.getLogger().warning("Failed to use new skull method; falling back. Reason: " + e.getMessage());
@@ -255,9 +273,7 @@ public final class CompatibilityMaterialData implements Compatibility {
     @SuppressWarnings("deprecation")
     @Override
     public ItemStack getSkullItemStack(Grave grave, Graves plugin) {
-        Material material;
-
-        material = Material.matchMaterial("PLAYER_HEAD");
+        Material material = Material.matchMaterial("PLAYER_HEAD");
 
         ItemStack itemStack;
 
@@ -271,8 +287,7 @@ public final class CompatibilityMaterialData implements Compatibility {
             itemStack = new ItemStack(material, 1, (short) 3);
         }
 
-        if (itemStack.getItemMeta() instanceof SkullMeta) {
-            SkullMeta skullMeta = (SkullMeta) itemStack.getItemMeta();
+        if (itemStack.getItemMeta() instanceof SkullMeta skullMeta) {
             if (grave.getOwnerType() == EntityType.PLAYER) {
                 try {
                     OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(grave.getOwnerName());
@@ -280,11 +295,14 @@ public final class CompatibilityMaterialData implements Compatibility {
                 } catch (NoSuchMethodError | NoClassDefFoundError ignored) {
                     skullMeta.setOwner(grave.getOwnerName());
                 }
-
             } else {
                 String texture = grave.getOwnerTexture();
                 if (texture != null && !texture.isEmpty()) {
-                    SkinTextureUtil.setSkullBlockTexture(skullMeta, grave.getOwnerName(), texture);
+                    if (plugin.getVersionManager().isPost1_21_9()) {
+                        SkinTextureUtil_post_1_21_9.setSkullBlockTexture(skullMeta, grave.getOwnerName(), texture);
+                    } else {
+                        SkinTextureUtil.setSkullBlockTexture(skullMeta, grave.getOwnerName(), texture);
+                    }
                 }
             }
             itemStack.setItemMeta(skullMeta);

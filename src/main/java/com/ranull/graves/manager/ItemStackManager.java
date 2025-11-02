@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
 /**
  * Manages the creation and manipulation of ItemStacks related to graves.
  */
-public final class ItemStackManager extends EntityDataManager {
+public class ItemStackManager extends EntityDataManager {
     /**
      * The main plugin instance associated with Graves.
      * <p>
@@ -34,8 +34,6 @@ public final class ItemStackManager extends EntityDataManager {
      */
     private final Graves plugin;
 
-    private Entity e = null;
-
     /**
      * Initializes a new instance of the ItemStackManager class.
      *
@@ -43,7 +41,6 @@ public final class ItemStackManager extends EntityDataManager {
      */
     public ItemStackManager(Graves plugin) {
         super(plugin);
-
         this.plugin = plugin;
     }
 
@@ -58,137 +55,120 @@ public final class ItemStackManager extends EntityDataManager {
         BookMeta bookMeta = (BookMeta) itemStack.getItemMeta();
         Enchantment durability = plugin.getVersionManager().getEnchantmentForVersion("DURABILITY");
 
-        if (bookMeta != null) {
-            if (plugin.getIntegrationManager().hasMiniMessage()) {
-                List<String> lineList = new ArrayList<>();
-                List<String> loreList = new ArrayList<>();
-
-                for (String lore : plugin.getConfig("obituary.line", grave).getStringList("obituary.line")) {
-                    lineList.add(MiniMessage.convertLegacyToMiniMessage(StringUtil.parseString(lore, grave.getLocationDeath(), grave, plugin)));
-                }
-
-                for (String string : plugin.getConfig("obituary.lore", grave).getStringList("obituary.lore")) {
-                    loreList.add(MiniMessage.convertLegacyToMiniMessage(StringUtil.parseString(string, grave.getLocationDeath(), grave, plugin)));
-                }
-
-                // Split lineList into pages, with each page having up to 13 lines
-                List<List<String>> pages = splitIntoPages(lineList, 13);
-
-                int customModelData = plugin.getConfig("obituary.model-data", grave).getInt("obituary.model-data", -1);
-
-                if (customModelData > -1) {
-                    try {
-                        CustomModelDataComponent cmdComponent = bookMeta.getCustomModelDataComponent();
-
-                        cmdComponent.setFloats(Collections.singletonList((float) customModelData));
-
-                        bookMeta.setCustomModelDataComponent(cmdComponent);
-                    } catch (Exception e) {
-                        bookMeta.setCustomModelData(customModelData);
-                    }
-                }
-
-                if (plugin.getConfig("obituary.glow", grave).getBoolean("obituary.glow")) {
-                    bookMeta.addEnchant(durability, 1, true);
-
-                    if (!plugin.getVersionManager().is_v1_7()) {
-                        bookMeta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
-                    }
-                }
-
-                if (!plugin.getVersionManager().is_v1_7() && !plugin.getVersionManager().is_v1_8()
-                        && !plugin.getVersionManager().is_v1_9()) {
-                    bookMeta.setGeneration(null);
-                }
-
-                String title = plugin.getConfig("obituary.title", grave).getString("obituary.title");
-
-                String author = plugin.getConfig("obituary.author", grave).getString("obituary.author");
-
-                String titleOriginal = StringUtil.parseString(title, grave, plugin);
-
-                String authorOriginal = StringUtil.parseString(author, grave, plugin);
-
-                Component titleConverted = MiniMessage.convertLegacyToComponent(titleOriginal);
-                Component authorConverted = MiniMessage.convertLegacyToComponent(authorOriginal);
-
-                List<Component> componentPages = pages.stream()
-                        .map(page -> MiniMessage.convertLegacyToComponent(String.join("\n", page)))
-                        .collect(Collectors.toList());
-
-                List<Component> componentList = loreList.stream()
-                        .map(MiniMessage::convertLegacyToComponent)
-                        .collect(Collectors.toList());
-
-                return MiniMessage.formatBookMeta(plugin,
-                        grave,
-                        itemStack,
-                        titleConverted,
-                        authorConverted,
-                        componentPages, componentList);
-            } else {
-                List<String> lineList = new ArrayList<>();
-                List<String> loreList = new ArrayList<>();
-
-                for (String lore : plugin.getConfig("obituary.line", grave).getStringList("obituary.line")) {
-                    lineList.add(StringUtil.parseString(lore, grave.getLocationDeath(), grave, plugin));
-                }
-
-                for (String string : plugin.getConfig("obituary.lore", grave).getStringList("obituary.lore")) {
-                    loreList.add(StringUtil.parseString(string, grave.getLocationDeath(), grave, plugin));
-                }
-
-                // Split lineList into pages, with each page having up to 13 lines
-                List<List<String>> pages = splitIntoPages(lineList, 13);
-
-                int customModelData = plugin.getConfig("obituary.model-data", grave).getInt("obituary.model-data", -1);
-
-                if (customModelData > -1) {
-                    try {
-                        CustomModelDataComponent cmdComponent = bookMeta.getCustomModelDataComponent();
-
-                        cmdComponent.setFloats(Collections.singletonList((float) customModelData));
-
-                        bookMeta.setCustomModelDataComponent(cmdComponent);
-                    } catch (Exception e) {
-                        bookMeta.setCustomModelData(customModelData);
-                    }
-                }
-
-                if (plugin.getConfig("obituary.glow", grave).getBoolean("obituary.glow")) {
-                    bookMeta.addEnchant(durability, 1, true);
-
-                    if (!plugin.getVersionManager().is_v1_7()) {
-                        bookMeta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
-                    }
-                }
-
-                if (!plugin.getVersionManager().is_v1_7() && !plugin.getVersionManager().is_v1_8()
-                        && !plugin.getVersionManager().is_v1_9()) {
-                    bookMeta.setGeneration(null);
-                }
-
-                // Convert pages back to List<String> for legacy handling
-                List<String> stringPages = pages.stream()
-                        .map(page -> String.join("\n", page))
-                        .collect(Collectors.toList());
-
-                bookMeta.setPages(String.join("\n", stringPages));
-                bookMeta.setLore(loreList);
-                bookMeta.setTitle(ChatColor.WHITE + StringUtil.parseString(plugin.getConfig("obituary.title", grave)
-                        .getString("obituary.title"), grave, plugin));
-                bookMeta.setAuthor(StringUtil.parseString(plugin.getConfig("obituary.author", grave)
-                        .getString("obituary.author"), grave, plugin));
-                itemStack.setItemMeta(bookMeta);
-            }
+        if (bookMeta == null) {
+            return itemStack;
         }
 
-        return itemStack;
+        if (plugin.getIntegrationManager().hasMiniMessage()) {
+            List<String> lineList = new ArrayList<>();
+            List<String> loreList = new ArrayList<>();
+
+            for (String lore : plugin.getConfig("obituary.line", grave).getStringList("obituary.line")) {
+                lineList.add(MiniMessage.convertLegacyToMiniMessage(
+                        StringUtil.parseString(lore, grave.getLocationDeath(), grave, plugin)));
+            }
+
+            for (String string : plugin.getConfig("obituary.lore", grave).getStringList("obituary.lore")) {
+                loreList.add(MiniMessage.convertLegacyToMiniMessage(
+                        StringUtil.parseString(string, grave.getLocationDeath(), grave, plugin)));
+            }
+
+            List<List<String>> pages = splitIntoPages(lineList, 13);
+
+            int customModelData = plugin.getConfig("obituary.model-data", grave)
+                    .getInt("obituary.model-data", -1);
+            applyCustomModelData(bookMeta, customModelData);
+
+            if (plugin.getConfig("obituary.glow", grave).getBoolean("obituary.glow")) {
+                bookMeta.addEnchant(durability, 1, true);
+                if (!plugin.getVersionManager().is_v1_7()) {
+                    bookMeta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+                }
+            }
+
+            if (!plugin.getVersionManager().is_v1_7()
+                    && !plugin.getVersionManager().is_v1_8()
+                    && !plugin.getVersionManager().is_v1_9()) {
+                bookMeta.setGeneration(null);
+            }
+
+            String title = plugin.getConfig("obituary.title", grave).getString("obituary.title");
+            String author = plugin.getConfig("obituary.author", grave).getString("obituary.author");
+
+            String titleOriginal = StringUtil.parseString(title, grave, plugin);
+            String authorOriginal = StringUtil.parseString(author, grave, plugin);
+
+            Component titleConverted = MiniMessage.convertLegacyToComponent(titleOriginal);
+            Component authorConverted = MiniMessage.convertLegacyToComponent(authorOriginal);
+
+            List<Component> componentPages = pages.stream()
+                    .map(page -> MiniMessage.convertLegacyToComponent(String.join("\n", page)))
+                    .collect(Collectors.toList());
+
+            List<Component> componentLore = loreList.stream()
+                    .map(MiniMessage::convertLegacyToComponent)
+                    .collect(Collectors.toList());
+
+            return MiniMessage.formatBookMeta(
+                    plugin,
+                    grave,
+                    itemStack,
+                    titleConverted,
+                    authorConverted,
+                    componentPages,
+                    componentLore
+            );
+        } else {
+            List<String> lineList = new ArrayList<>();
+            List<String> loreList = new ArrayList<>();
+
+            for (String lore : plugin.getConfig("obituary.line", grave).getStringList("obituary.line")) {
+                lineList.add(StringUtil.parseString(lore, grave.getLocationDeath(), grave, plugin));
+            }
+
+            for (String string : plugin.getConfig("obituary.lore", grave).getStringList("obituary.lore")) {
+                loreList.add(StringUtil.parseString(string, grave.getLocationDeath(), grave, plugin));
+            }
+
+            List<List<String>> pages = splitIntoPages(lineList, 13);
+
+            int customModelData = plugin.getConfig("obituary.model-data", grave)
+                    .getInt("obituary.model-data", -1);
+            applyCustomModelData(bookMeta, customModelData);
+
+            if (plugin.getConfig("obituary.glow", grave).getBoolean("obituary.glow")) {
+                bookMeta.addEnchant(durability, 1, true);
+                if (!plugin.getVersionManager().is_v1_7()) {
+                    bookMeta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+                }
+            }
+
+            if (!plugin.getVersionManager().is_v1_7()
+                    && !plugin.getVersionManager().is_v1_8()
+                    && !plugin.getVersionManager().is_v1_9()) {
+                bookMeta.setGeneration(null);
+            }
+
+            List<String> stringPages = pages.stream()
+                    .map(page -> String.join("\n", page))
+                    .collect(Collectors.toList());
+
+            bookMeta.setPages(stringPages);
+            bookMeta.setLore(loreList);
+            bookMeta.setTitle(ChatColor.WHITE + StringUtil.parseString(
+                    plugin.getConfig("obituary.title", grave).getString("obituary.title"), grave, plugin));
+            bookMeta.setAuthor(StringUtil.parseString(
+                    plugin.getConfig("obituary.author", grave).getString("obituary.author"), grave, plugin));
+
+            itemStack.setItemMeta(bookMeta);
+            return itemStack;
+        }
     }
 
     /**
      * Splits a list of strings into sublists, each containing up to maxLinesPerPage lines.
-     * @param lines The list of strings to split.
+     *
+     * @param lines           The list of strings to split.
      * @param maxLinesPerPage The maximum number of lines per page.
      * @return A list of pages, where each page is a list of strings.
      */
@@ -210,48 +190,37 @@ public final class ItemStackManager extends EntityDataManager {
         ItemStack itemStack = plugin.getCompatibility().getSkullItemStack(grave, plugin);
         ItemMeta itemMeta = itemStack.getItemMeta();
 
-        if (itemMeta != null) {
-            List<String> loreList = new ArrayList<>();
+        if (itemMeta == null) return itemStack;
 
-            for (String string : plugin.getConfig("head.lore", grave).getStringList("head.lore")) {
-                if (plugin.getIntegrationManager().hasMiniMessage()) {
-                    String loreNew = StringUtil.parseString("&7" + string, grave.getLocationDeath(), grave, plugin);
-                    loreList.add(MiniMessage.parseString(loreNew));
-                } else {
-                    loreList.add(ChatColor.GRAY + StringUtil.parseString(string, grave.getLocationDeath(), grave, plugin));
-                }
+        List<String> loreList = new ArrayList<>();
 
-            }
-
-            int customModelData = plugin.getConfig("head.model-data", grave).getInt("head.model-data", -1);
-
-            if (customModelData > -1) {
-                try {
-                    CustomModelDataComponent cmdComponent = itemMeta.getCustomModelDataComponent();
-
-                    cmdComponent.setFloats(Collections.singletonList((float) customModelData));
-
-                    itemMeta.setCustomModelDataComponent(cmdComponent);
-                } catch (Exception e) {
-                    itemMeta.setCustomModelData(customModelData);
-                }
-            }
-
-            itemMeta.setLore(loreList);
-
-            String displayName;
+        for (String string : plugin.getConfig("head.lore", grave).getStringList("head.lore")) {
             if (plugin.getIntegrationManager().hasMiniMessage()) {
-                String displayNameNew = StringUtil.parseString("&f" + plugin.getConfig("head.name", grave)
-                        .getString("head.name"), grave, plugin);
-                displayName = MiniMessage.parseString(displayNameNew);
+                String loreNew = StringUtil.parseString("&7" + string, grave.getLocationDeath(), grave, plugin);
+                loreList.add(MiniMessage.parseString(loreNew));
             } else {
-                displayName = ChatColor.WHITE + StringUtil.parseString(plugin.getConfig("head.name", grave)
-                        .getString("head.name"), grave, plugin);
+                loreList.add(ChatColor.GRAY + StringUtil.parseString(string, grave.getLocationDeath(), grave, plugin));
             }
-
-            itemMeta.setDisplayName(displayName);
-            itemStack.setItemMeta(itemMeta);
         }
+
+        int customModelData = plugin.getConfig("head.model-data", grave)
+                .getInt("head.model-data", -1);
+        applyCustomModelData(itemMeta, customModelData);
+
+        itemMeta.setLore(loreList);
+
+        String displayName;
+        if (plugin.getIntegrationManager().hasMiniMessage()) {
+            String displayNameNew = StringUtil.parseString("&f" + plugin.getConfig("head.name", grave)
+                    .getString("head.name"), grave, plugin);
+            displayName = MiniMessage.parseString(displayNameNew);
+        } else {
+            displayName = ChatColor.WHITE + StringUtil.parseString(
+                    plugin.getConfig("head.name", grave).getString("head.name"), grave, plugin);
+        }
+
+        itemMeta.setDisplayName(displayName);
+        itemStack.setItemMeta(itemMeta);
 
         return itemStack;
     }
@@ -264,14 +233,14 @@ public final class ItemStackManager extends EntityDataManager {
      * @return The created ItemStack.
      */
     public ItemStack createGraveListItemStack(int number, Grave grave) {
-        Material material;
         Enchantment durability = plugin.getVersionManager().getEnchantmentForVersion("DURABILITY");
 
+        Material material;
         if (plugin.getConfig("gui.menu.list.item.block", grave).getBoolean("gui.menu.list.item.block")) {
             String materialString = plugin.getConfig("block.material", grave)
                     .getString("block.material", "CHEST");
 
-            if (materialString.equals("PLAYER_HEAD") && !plugin.getVersionManager().hasBlockData()) {
+            if ("PLAYER_HEAD".equals(materialString) && !plugin.getVersionManager().hasBlockData()) {
                 materialString = "SKULL_ITEM";
             }
 
@@ -281,64 +250,53 @@ public final class ItemStackManager extends EntityDataManager {
                     .getString("gui.menu.list.item.block", "CHEST"));
         }
 
-        if (material == null) {
-            material = Material.CHEST;
-        }
+        ItemStack itemStack = new ItemStack(material != null ? material : Material.CHEST);
 
-        ItemStack itemStack = new ItemStack(material);
-
-        if (itemStack.getType().name().equals("PLAYER_HEAD") || itemStack.getType().name().equals("SKULL_ITEM")) {
+        if ("PLAYER_HEAD".equals(itemStack.getType().name()) || "SKULL_ITEM".equals(itemStack.getType().name())) {
             itemStack = plugin.getCompatibility().getSkullItemStack(grave, plugin);
         }
 
-        if (itemStack.getItemMeta() != null) {
-            ItemMeta itemMeta = itemStack.getItemMeta();
-            String name;
-            if (plugin.getIntegrationManager().hasMiniMessage()) {
-                String newName = StringUtil.parseString("&f" + plugin.getConfig("gui.menu.list.name", grave)
-                        .getString("gui.menu.list.name"), grave, plugin).replace("%number%",
-                        String.valueOf(number));
-                name = MiniMessage.parseString(newName);
-            } else {
-                name = ChatColor.WHITE + StringUtil.parseString(plugin.getConfig("gui.menu.list.name", grave)
-                        .getString("gui.menu.list.name"), grave, plugin).replace("%number%",
-                        String.valueOf(number));
-            }
-            List<String> loreList = new ArrayList<>();
-            int customModelData = plugin.getConfig("gui.menu.list.model-data", grave)
-                    .getInt("gui.menu.list.model-data", -1);
+        ItemMeta itemMeta = itemStack.getItemMeta();
+        if (itemMeta == null) return itemStack;
 
-            for (String string : plugin.getConfig("gui.menu.list.lore", grave).getStringList("gui.menu.list.lore")) {
-                e = Bukkit.getEntity(grave.getOwnerUUID());
-                if (plugin.getIntegrationManager().hasMiniMessage()) {
-                    String loreOriginal = StringUtil.parseString("&7" + string, e, grave.getLocationDeath(), grave, plugin);
-                    loreList.add(MiniMessage.parseString(loreOriginal));
-                } else {
-                    loreList.add(ChatColor.GRAY + StringUtil.parseString(string, e, grave.getLocationDeath(), grave, plugin));
-                }
-            }
-
-            if (plugin.getConfig().getBoolean("gui.menu.list.glow")) {
-                itemMeta.addEnchant(durability, 1, true);
-                itemMeta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
-            }
-
-            if (customModelData > -1) {
-                try {
-                    CustomModelDataComponent cmdComponent = itemMeta.getCustomModelDataComponent();
-
-                    cmdComponent.setFloats(Collections.singletonList((float) customModelData));
-
-                    itemMeta.setCustomModelDataComponent(cmdComponent);
-                } catch (Exception e) {
-                    itemMeta.setCustomModelData(customModelData);
-                }
-            }
-
-            itemMeta.setDisplayName(name);
-            itemMeta.setLore(loreList);
-            itemStack.setItemMeta(itemMeta);
+        String name;
+        if (plugin.getIntegrationManager().hasMiniMessage()) {
+            String newName = StringUtil.parseString("&f" + plugin.getConfig("gui.menu.list.name", grave)
+                            .getString("gui.menu.list.name"),
+                    grave, plugin).replace("%number%", String.valueOf(number));
+            name = MiniMessage.parseString(newName);
+        } else {
+            name = ChatColor.WHITE + StringUtil.parseString(
+                    plugin.getConfig("gui.menu.list.name", grave).getString("gui.menu.list.name"),
+                    grave, plugin).replace("%number%", String.valueOf(number));
         }
+
+        List<String> loreList = new ArrayList<>();
+        int customModelData = plugin.getConfig("gui.menu.list.model-data", grave)
+                .getInt("gui.menu.list.model-data", -1);
+
+        for (String string : plugin.getConfig("gui.menu.list.lore", grave).getStringList("gui.menu.list.lore")) {
+            Entity ownerEntity = Bukkit.getEntity(grave.getOwnerUUID());
+            if (plugin.getIntegrationManager().hasMiniMessage()) {
+                String loreOriginal = StringUtil.parseString("&7" + string, ownerEntity,
+                        grave.getLocationDeath(), grave, plugin);
+                loreList.add(MiniMessage.parseString(loreOriginal));
+            } else {
+                loreList.add(ChatColor.GRAY + StringUtil.parseString(string, ownerEntity,
+                        grave.getLocationDeath(), grave, plugin));
+            }
+        }
+
+        if (plugin.getConfig().getBoolean("gui.menu.list.glow")) {
+            itemMeta.addEnchant(durability, 1, true);
+            itemMeta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+        }
+
+        applyCustomModelData(itemMeta, customModelData);
+
+        itemMeta.setDisplayName(name);
+        itemMeta.setLore(loreList);
+        itemStack.setItemMeta(itemMeta);
 
         return itemStack;
     }
@@ -358,61 +316,75 @@ public final class ItemStackManager extends EntityDataManager {
 
         if (material == null) {
             material = Material.PAPER;
-
             plugin.debugMessage(materialString.toUpperCase() + " is not a Material ENUM", 1);
         }
 
         ItemStack itemStack = new ItemStack(material);
+        ItemMeta itemMeta = itemStack.getItemMeta();
+        if (itemMeta == null) return itemStack;
 
-        if (itemStack.getItemMeta() != null) {
-            ItemMeta itemMeta = itemStack.getItemMeta();
-            String name;
-            if (plugin.getIntegrationManager().hasMiniMessage()) {
-                String newName = StringUtil.parseString("&f" + plugin.getConfig("gui.menu.grave.slot." + slot + ".name", grave)
-                        .getString("gui.menu.grave.slot." + slot + ".name"), grave, plugin);
-                name = MiniMessage.parseString(newName);
-            } else {
-                name = ChatColor.WHITE + StringUtil.parseString(plugin.getConfig("gui.menu.grave.slot." + slot + ".name", grave)
-                        .getString("gui.menu.grave.slot." + slot + ".name"), grave, plugin);
-            }
-            List<String> loreList = new ArrayList<>();
-            int customModelData = plugin.getConfig("gui.menu.grave.slot." + slot + ".model-data", grave)
-                    .getInt("gui.menu.grave.slot." + slot + ".model-data", -1);
-
-            for (String string : plugin.getConfig("gui.menu.grave.slot." + slot + ".lore", grave)
-                    .getStringList("gui.menu.grave.slot." + slot + ".lore")) {
-                e = Bukkit.getEntity(grave.getOwnerUUID());
-                if (plugin.getIntegrationManager().hasMiniMessage()) {
-                    String newLore = StringUtil.parseString("&7" + string, e, grave.getLocationDeath(), grave, plugin);
-                    loreList.add(MiniMessage.parseString(newLore));
-                } else {
-                    loreList.add(ChatColor.GRAY + StringUtil.parseString(string, e, grave.getLocationDeath(), grave, plugin));
-                }
-
-            }
-
-            if (plugin.getConfig().getBoolean("gui.menu.grave.slot." + slot + ".glow")) {
-                itemMeta.addEnchant(durability, 1, true);
-                itemMeta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
-            }
-
-            if (customModelData > -1) {
-                try {
-                    CustomModelDataComponent cmdComponent = itemMeta.getCustomModelDataComponent();
-
-                    cmdComponent.setFloats(Collections.singletonList((float) customModelData));
-
-                    itemMeta.setCustomModelDataComponent(cmdComponent);
-                } catch (Exception e) {
-                    itemMeta.setCustomModelData(customModelData);
-                }
-            }
-
-            itemMeta.setDisplayName(name);
-            itemMeta.setLore(loreList);
-            itemStack.setItemMeta(itemMeta);
+        String name;
+        if (plugin.getIntegrationManager().hasMiniMessage()) {
+            String newName = StringUtil.parseString("&f" +
+                    plugin.getConfig("gui.menu.grave.slot." + slot + ".name", grave)
+                            .getString("gui.menu.grave.slot." + slot + ".name"), grave, plugin);
+            name = MiniMessage.parseString(newName);
+        } else {
+            name = ChatColor.WHITE + StringUtil.parseString(
+                    plugin.getConfig("gui.menu.grave.slot." + slot + ".name", grave)
+                            .getString("gui.menu.grave.slot." + slot + ".name"), grave, plugin);
         }
 
+        List<String> loreList = new ArrayList<>();
+        int customModelData = plugin.getConfig("gui.menu.grave.slot." + slot + ".model-data", grave)
+                .getInt("gui.menu.grave.slot." + slot + ".model-data", -1);
+
+        for (String string : plugin.getConfig("gui.menu.grave.slot." + slot + ".lore", grave)
+                .getStringList("gui.menu.grave.slot." + slot + ".lore")) {
+            Entity ownerEntity = Bukkit.getEntity(grave.getOwnerUUID());
+            if (plugin.getIntegrationManager().hasMiniMessage()) {
+                String newLore = StringUtil.parseString("&7" + string, ownerEntity,
+                        grave.getLocationDeath(), grave, plugin);
+                loreList.add(MiniMessage.parseString(newLore));
+            } else {
+                loreList.add(ChatColor.GRAY + StringUtil.parseString(string, ownerEntity,
+                        grave.getLocationDeath(), grave, plugin));
+            }
+        }
+
+        if (plugin.getConfig().getBoolean("gui.menu.grave.slot." + slot + ".glow")) {
+            itemMeta.addEnchant(durability, 1, true);
+            itemMeta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+        }
+
+        applyCustomModelData(itemMeta, customModelData);
+
+        itemMeta.setDisplayName(name);
+        itemMeta.setLore(loreList);
+        itemStack.setItemMeta(itemMeta);
+
         return itemStack;
+    }
+
+    /**
+     * Applies custom model data using the 1.20.5+ component API if available,
+     * falling back to legacy {@link ItemMeta#setCustomModelData(Integer)}.
+     *
+     * @param meta            the item meta (book meta or item meta)
+     * @param customModelData the model data id; ignored if &lt; 0
+     */
+    private void applyCustomModelData(ItemMeta meta, int customModelData) {
+        if (customModelData <= -1 || meta == null) return;
+
+        try {
+            CustomModelDataComponent cmdComponent = meta.getCustomModelDataComponent();
+            cmdComponent.setFloats(Collections.singletonList((float) customModelData));
+            meta.setCustomModelDataComponent(cmdComponent);
+        } catch (Throwable ignored) {
+            try {
+                meta.setCustomModelData(customModelData);
+            } catch (Throwable ignoreAgain) {
+            }
+        }
     }
 }

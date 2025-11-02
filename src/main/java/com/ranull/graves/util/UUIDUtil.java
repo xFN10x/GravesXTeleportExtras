@@ -5,7 +5,9 @@ import java.util.UUID;
 /**
  * Utility class for handling UUID operations.
  */
-public final class UUIDUtil {
+public class UUIDUtil {
+
+    private UUIDUtil() {}
 
     /**
      * Converts a string to a UUID.

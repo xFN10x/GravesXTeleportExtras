@@ -7,7 +7,7 @@ import dev.cwhead.GravesX.compatibility.CompatibilitySoundEnum;
 import dev.cwhead.GravesX.event.GraveAutoLootEvent;
 import dev.cwhead.GravesX.event.GraveBreakEvent;
 import org.bukkit.Location;
-import org.bukkit.Particle;
+import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -96,6 +96,8 @@ public class BlockBreakListener implements Listener {
 
         boolean cancelled = modern.isCancelled() || legacy.isCancelled();
         boolean addon = modern.isAddon() || legacy.isAddon();
+
+        event.setDropItems(false);
 
         if (!cancelled && !addon) {
             boolean dropItemsFinal = modern.isDropItems() && legacy.isDropItems();
@@ -189,7 +191,6 @@ public class BlockBreakListener implements Listener {
         }
     }
 
-
     /**
      * Handles the auto-loot process when breaking a grave.
      *
@@ -242,7 +243,6 @@ public class BlockBreakListener implements Listener {
             event.setCancelled(true);
         }
     }
-
 
     /**
      * Finalizes the process of breaking a grave by closing the grave, playing effects, and running commands.

@@ -9,15 +9,16 @@ import org.bukkit.block.BlockFace;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * World/location helper API.
  */
-public final class LocationAPI {
+public class LocationAPI {
     private final Graves plugin;
 
     public LocationAPI(Graves plugin) {
-        this.plugin = plugin;
+        this.plugin = Objects.requireNonNull(plugin, "plugin");
     }
 
     /**

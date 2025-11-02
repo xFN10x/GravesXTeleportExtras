@@ -5,7 +5,9 @@ import org.bukkit.entity.Player;
 /**
  * Utility class for handling experience-related operations for players.
  */
-public final class ExperienceUtil {
+public class ExperienceUtil {
+
+    private ExperienceUtil() {}
 
     /**
      * Gets the total experience of a player.
@@ -41,7 +43,6 @@ public final class ExperienceUtil {
         } else if (level <= 30) {
             return 5 * level - 38;
         }
-
         return 9 * level - 158;
     }
 
@@ -92,7 +93,6 @@ public final class ExperienceUtil {
     @Deprecated
     public static int getPlayerDropExperience(Player player, float expStorePercent) {
         int experience = getPlayerExperience(player);
-
         return experience > 0 ? (int) (experience * expStorePercent) : 0;
     }
 }

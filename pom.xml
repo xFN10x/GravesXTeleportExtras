@@ -8,7 +8,7 @@
     <artifactId>graves</artifactId>
     <name>GravesX</name>
     <description>Full featured lightweight death chest plugin.</description>
-    <version>4.9.9.1</version>
+    <version>4.9.10.1</version>
 
     <developers>
         <developer>
@@ -28,7 +28,7 @@
     </contributors>
 
     <properties>
-        <java.version>11</java.version>
+        <java.version>17</java.version> <!-- As of 4.9.9.1 -->
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -36,6 +36,7 @@
         <defaultGoal>clean package</defaultGoal>
         <finalName>${project.name}-${project.version}</finalName>
         <plugins>
+            <!-- Compiler -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -45,6 +46,8 @@
                     <target>${java.version}</target>
                 </configuration>
             </plugin>
+
+            <!-- Shade Plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -115,11 +118,11 @@
                     </relocations>
                 </configuration>
                 <executions>
+                    <!-- Main shaded jar -->
                     <execution>
+                        <id>shade-main</id>
                         <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
+                        <goals><goal>shade</goal></goals>
                         <configuration>
                             <createDependencyReducedPom>true</createDependencyReducedPom>
                             <filters>
@@ -133,8 +136,50 @@
                             <minimizeJar>false</minimizeJar>
                         </configuration>
                     </execution>
+
+                    <!-- Sources jar-->
+                    <execution>
+                        <id>shade-sources</id>
+                        <phase>package</phase>
+                        <goals><goal>shade</goal></goals>
+                        <configuration>
+                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                            <shadedClassifierName>api-sources</shadedClassifierName>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/**</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
+
+                    <!-- Javadocs jar -->
+                    <execution>
+                        <id>shade-javadoc</id>
+                        <phase>package</phase>
+                        <goals><goal>shade</goal></goals>
+                        <configuration>
+                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                            <shadedClassifierName>api-javadoc</shadedClassifierName>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/**</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
+
+            <!-- Resources -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
@@ -146,6 +191,8 @@
                     </nonFilteredFileExtensions>
                 </configuration>
             </plugin>
+
+            <!-- API jar -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
@@ -158,17 +205,20 @@
                         <configuration>
                             <classifier>api</classifier>
                             <includes>
-                                <include>**/**</include>
+                                <include>**/*.class</include>
                             </includes>
                             <excludes>
-                                <exclude>config</exclude>
-                                <exclude>data</exclude>
-                                <exclude>plugin.yml</exclude>
+                                <exclude>**/*.yml</exclude>
+                                <exclude>**/*.json</exclude>
+                                <exclude>config/**</exclude>
+                                <exclude>data/**</exclude>
                             </excludes>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
+
+            <!-- Javadocs plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
@@ -179,19 +229,16 @@
                         <goals>
                             <goal>jar</goal>
                         </goals>
+                        <configuration>
+                            <classifier>api-javadoc</classifier>
+                            <sourcepath>${project.build.sourceDirectory}</sourcepath>
+                            <excludePackageNames>config,data</excludePackageNames>
+                        </configuration>
                     </execution>
                 </executions>
-                <configuration>
-                    <classifier>api-javadoc</classifier>
-                    <show>private</show>
-                    <nohelp>true</nohelp>
-                </configuration>
             </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-site-plugin</artifactId>
-                <version>4.0.0-M16</version>
-            </plugin>
+
+            <!-- Sources plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
@@ -205,11 +252,28 @@
                         </goals>
                         <configuration>
                             <classifier>api-sources</classifier>
+                            <includes>
+                                <include>**/*.java</include>
+                            </includes>
+                            <excludes>
+                                <exclude>**/*.yml</exclude>
+                                <exclude>**/*.json</exclude>
+                                <exclude>config/**</exclude>
+                                <exclude>data/**</exclude>
+                            </excludes>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
+
+            <!-- Site plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-site-plugin</artifactId>
+                <version>4.0.0-M16</version>
+            </plugin>
         </plugins>
+
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
@@ -247,6 +311,18 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-project-info-reports-plugin</artifactId>
                 <version>3.9.0</version>
+                <configuration>
+                    <dependencyLocationsEnabled>true</dependencyLocationsEnabled>
+                    <includePlugins>true</includePlugins>
+                    <includeDependencies>true</includeDependencies>
+                    <includeTransitiveDependencies>true</includeTransitiveDependencies>
+                    <includeManagedDependencies>true</includeManagedDependencies>
+                    <dependencyArtifactFilter>
+                        <includes>
+                            <include>*:*</include>
+                        </includes>
+                    </dependencyArtifactFilter>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -310,10 +386,6 @@
             <id>oraxen</id>
             <name>Oraxen Repository</name>
             <url>https://repo.oraxen.com/releases</url>
-        </repository>
-        <repository>
-            <id>citizens-repo</id>
-            <url>https://maven.citizensnpcs.co/repo</url>
         </repository>
         <repository>
             <id>clojars-repo</id>
@@ -383,13 +455,13 @@
         <dependency>
             <groupId>org.spigotmc</groupId>
             <artifactId>spigot-api</artifactId>
-            <version>1.21.8-R0.1-SNAPSHOT</version>
+            <version>1.21.9-R0.1-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
-            <version>1.21.8-R0.1-SNAPSHOT</version>
+            <version>1.21.9-R0.1-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -407,7 +479,7 @@
         <dependency>
             <groupId>de.oliver</groupId>
             <artifactId>FancyNpcs</artifactId>
-            <version>2.7.0</version>
+            <version>2.8.0</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -419,13 +491,13 @@
         <dependency>
             <groupId>com.zaxxer</groupId>
             <artifactId>HikariCP</artifactId>
-            <version>6.3.0</version>
+            <version>6.3.3</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.mariadb.jdbc</groupId>
             <artifactId>mariadb-java-client</artifactId>
-            <version>3.5.4</version>
+            <version>3.5.6</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -443,13 +515,13 @@
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
-            <version>42.7.7</version>
+            <version>42.7.8</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
-            <version>2.3.232</version>
+            <version>2.4.240</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -462,7 +534,7 @@
         <dependency>
             <groupId>com.mojang</groupId>
             <artifactId>authlib</artifactId>
-            <version>7.0.60-graves</version>
+            <version>7.0.61-graves</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -541,12 +613,6 @@
             <groupId>com.github.Ste3et</groupId>
             <artifactId>FurnitureLib</artifactId>
             <version>3.2.8</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>net.citizensnpcs</groupId>
-            <artifactId>citizens-main</artifactId>
-            <version>2.0.39-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -712,13 +778,13 @@
         <dependency>
             <groupId>com.github.oshi</groupId>
             <artifactId>oshi-core</artifactId>
-            <version>6.8.2</version>
+            <version>6.9.0</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>33.4.8-jre</version>
+            <version>33.5.0-jre</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -730,7 +796,7 @@
         <dependency>
             <groupId>com.microsoft.sqlserver</groupId>
             <artifactId>mssql-jdbc</artifactId>
-            <version>13.1.1.jre8-preview</version>
+            <version>13.2.0.jre11</version>
             <scope>provided</scope>
         </dependency>
         <dependency>

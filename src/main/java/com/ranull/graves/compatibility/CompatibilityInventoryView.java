@@ -12,6 +12,8 @@ import java.lang.reflect.Method;
  */
 public class CompatibilityInventoryView {
 
+    private CompatibilityInventoryView() {}
+
     /**
      * In API versions 1.20.6 and earlier, InventoryView is a class.
      * In versions 1.21 and later, it is an interface.
@@ -58,9 +60,9 @@ public class CompatibilityInventoryView {
      * @param inventoryView The InventoryView to inspect.
      * @return The top Inventory object from the event's InventoryView.
      */
-    public static Inventory getTopInventory(InventoryView inventoryView) {
+    public static Inventory getTopInventory(Object inventoryView) {
         try {
-            Method getTopInventory = ((Object) inventoryView).getClass().getMethod("getTopInventory");
+            Method getTopInventory = inventoryView.getClass().getMethod("getTopInventory");
             getTopInventory.setAccessible(true);
             return (Inventory) getTopInventory.invoke(inventoryView);
         } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
@@ -76,9 +78,9 @@ public class CompatibilityInventoryView {
      * @param inventoryView The InventoryView to inspect.
      * @return The bottom Inventory object from the event's InventoryView.
      */
-    public static Inventory getBottomInventory(InventoryView inventoryView) {
+    public static Inventory getBottomInventory(Object inventoryView) {
         try {
-            Method getBottomInventory = ((Object) inventoryView).getClass().getMethod("getBottomInventory");
+            Method getBottomInventory = inventoryView.getClass().getMethod("getBottomInventory");
             getBottomInventory.setAccessible(true);
             return (Inventory) getBottomInventory.invoke(inventoryView);
         } catch (NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {

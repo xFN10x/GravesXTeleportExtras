@@ -5,7 +5,9 @@ import org.bukkit.entity.Entity;
 /**
  * Utility class for handling entity-related operations.
  */
-public final class EntityUtil {
+public class EntityUtil {
+
+    private EntityUtil() {}
 
     /**
      * Checks if an entity has a specific permission.

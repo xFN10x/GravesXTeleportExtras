@@ -12,7 +12,6 @@ import de.Ste3et_C0st.FurnitureLib.Utilitis.LocationUtil;
 import de.Ste3et_C0st.FurnitureLib.main.FurniturePlugin;
 import de.Ste3et_C0st.FurnitureLib.main.ObjectID;
 import de.Ste3et_C0st.FurnitureLib.main.entity.fContainerEntity;
-import de.Ste3et_C0st.FurnitureLib.main.entity.fEntity;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -24,14 +23,13 @@ import org.bukkit.plugin.Plugin;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
 /**
  * Manages integration with the FurnitureLib plugin for creating, removing, and interacting with furniture.
  */
-public final class FurnitureLib extends EntityDataManager {
+public class FurnitureLib extends EntityDataManager {
 
     private final Graves plugin;
     private final de.Ste3et_C0st.FurnitureLib.main.FurnitureLib furnitureLib;
@@ -109,14 +107,16 @@ public final class FurnitureLib extends EntityDataManager {
                     objectID.setUUID(UUID.randomUUID());
                     objectID.getBlockList().stream()
                             .filter(signLocation -> signLocation.getBlock().getType().name().contains("SIGN"))
-                            .forEach((signLocation) -> setSign(signLocation.getBlock(),
-                                    plugin.getConfig("furniturelib.line", grave)
-                                            .getStringList("furniturelib.line"), grave));
+                            .forEach(signLocation -> setSign(
+                                    signLocation.getBlock(),
+                                    plugin.getConfig("furniturelib.line", grave).getStringList("furniturelib.line"),
+                                    grave
+                            ));
 
                     if (plugin.getConfig("furniturelib.head.replace", grave).getBoolean("furniturelib.head.replace")) {
                         objectID.getPacketList().stream()
-                                .filter(fEntity -> fEntity instanceof fContainerEntity)
-                                .map(fEntity -> (fContainerEntity) fEntity)
+                                .filter(fE -> fE instanceof fContainerEntity)
+                                .map(fE -> (fContainerEntity) fE)
                                 .forEach(fContainerEntity -> setSkull(fContainerEntity, grave));
                     }
 
@@ -150,7 +150,7 @@ public final class FurnitureLib extends EntityDataManager {
      * @param entityData The entity data of the furniture to remove.
      */
     public void removeFurniture(EntityData entityData) {
-        removeFurniture(Collections.singletonList(entityData));
+        removeFurniture(List.of(entityData));
     }
 
     /**
@@ -171,9 +171,55 @@ public final class FurnitureLib extends EntityDataManager {
         plugin.getDataManager().removeEntityData(removeEntityDataList);
     }
 
+    /**
+     * True if FurnitureLib furniture occupies the grave's location.
+     *
+     * @param grave The grave to check.
+     * @return True if any FurnitureLib ObjectID covers the grave's block position.
+     */
+    public boolean hasFurniture(Grave grave) {
+        if (grave == null) return false;
+
+        Location loc = grave.getLocationDeath();
+        if (loc == null || loc.getWorld() == null) loc = grave.getLocationDeath();
+        if (loc == null || loc.getWorld() == null) return false;
+
+        final int gx = loc.getBlockX();
+        final int gy = loc.getBlockY();
+        final int gz = loc.getBlockZ();
+        final String worldName = loc.getWorld().getName();
+
+        try {
+            for (ObjectID objectID : furnitureLib.getFurnitureManager().getObjectList()) {
+                Location start = objectID.getStartLocation();
+                if (start != null
+                        && start.getWorld() != null
+                        && worldName.equals(start.getWorld().getName())
+                        && start.getBlockX() == gx
+                        && start.getBlockY() == gy
+                        && start.getBlockZ() == gz) {
+                    return true;
+                }
+
+                for (Location part : objectID.getBlockList()) {
+                    if (part != null
+                            && part.getWorld() != null
+                            && worldName.equals(part.getWorld().getName())
+                            && part.getBlockX() == gx
+                            && part.getBlockY() == gy
+                            && part.getBlockZ() == gz) {
+                        return true;
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+
+        return false;
+    }
+
     private void setSign(Block block, List<String> stringList, Grave grave) {
-        if (block.getState() instanceof Sign) {
-            Sign sign = (Sign) block.getState();
+        if (block.getState() instanceof Sign sign) {
             int counter = 0;
             for (String string : stringList) {
                 if (counter <= 4) {
@@ -256,8 +302,9 @@ public final class FurnitureLib extends EntityDataManager {
 
         @Override
         public void applyPluginFunctions() {
-            furnitureLib.getFurnitureManager().getProjects().stream().filter(project -> project.getPlugin().getName()
-                    .equals(getPlugin().getDescription().getName())).forEach(Project::applyFunction);
+            furnitureLib.getFurnitureManager().getProjects().stream()
+                    .filter(project -> project.getPlugin().getName().equals(getPlugin().getDescription().getName()))
+                    .forEach(Project::applyFunction);
         }
 
         @Override
